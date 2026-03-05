@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>周期表タイムアタック（iPad横最適化）</title>
+<title>周期表タイムアタック（iPad横最適化 / 修正版）</title>
 
 <style>
   :root{
@@ -12,14 +12,16 @@
     --muted:#aab4e6;
 
     --cell-bg: rgba(255,255,255,0.04);
-    --cell-border: rgba(255,255,255,0.32);
-    --cell-border-strong: rgba(255,255,255,0.55);
+    --cell-border: rgba(255,255,255,0.38);
+    --cell-border-strong: rgba(255,255,255,0.62);
 
     --good-bg: rgba(57,217,138,0.28);
     --good-border: rgba(57,217,138,0.90);
 
     --bad-bg: rgba(255,92,124,0.22);
     --bad-border: rgba(255,92,124,0.90);
+
+    --panelLine: rgba(255,255,255,.10);
   }
 
   *{box-sizing:border-box}
@@ -46,18 +48,17 @@
 
   .layout{
     display:grid;
-    grid-template-columns: 380px 1fr;
+    grid-template-columns: 390px 1fr;
     gap: 12px;
     align-items:start;
   }
-
   @media (max-width: 900px){
     .layout{grid-template-columns: 1fr;}
   }
 
   .panel{
     background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.03));
-    border: 1px solid rgba(255,255,255,.10);
+    border: 1px solid var(--panelLine);
     border-radius: 14px;
     padding: 12px;
     box-shadow: 0 10px 30px rgba(0,0,0,.25);
@@ -82,7 +83,11 @@
     align-items:center;
     white-space:nowrap;
   }
-  .pill b{color:var(--text); font-weight:800; font-variant-numeric: tabular-nums;}
+  .pill b{
+    color:var(--text);
+    font-weight:900;
+    font-variant-numeric: tabular-nums;
+  }
 
   .btns{display:flex; gap:8px; flex-wrap:wrap; margin-top: 4px;}
   button{
@@ -91,7 +96,7 @@
     border: 1px solid rgba(255,255,255,.16);
     background: rgba(0,0,0,.20);
     color: var(--text);
-    font-weight: 800;
+    font-weight: 900;
     cursor:pointer;
     user-select:none;
     transition: transform .06s ease, background .2s ease, border-color .2s ease;
@@ -115,10 +120,11 @@
   }
   .question{
     font-size: 22px;
-    font-weight: 900;
+    font-weight: 950;
     line-height: 1.25;
     letter-spacing: .01em;
     margin: 0 0 10px;
+    min-height: 56px;
   }
 
   .msg{
@@ -150,6 +156,27 @@
     color: rgba(232,236,255,.72);
     font-size: 12px;
     line-height: 1.5;
+  }
+
+  /* 結果表示（終了後に必ず見える） */
+  .result{
+    margin-top: 10px;
+    border-radius: 14px;
+    padding: 12px;
+    border: 1px solid rgba(255,255,255,.14);
+    background: rgba(0,0,0,.18);
+  }
+  .result .big{
+    font-size: 22px;
+    font-weight: 950;
+    letter-spacing:.02em;
+    font-variant-numeric: tabular-nums;
+  }
+  .result .small{
+    margin-top:6px;
+    color: rgba(232,236,255,.75);
+    font-size: 12px;
+    line-height:1.45;
   }
 
   .ptable{
@@ -185,7 +212,6 @@
     background: transparent;
     opacity: .35;
   }
-  .cell.gap:hover{border-color: rgba(255,255,255,0.16); background:transparent;}
 
   .sym{
     font-size: 18px;
@@ -224,6 +250,7 @@
   <h1>周期表タイムアタック（元素記号 / 原子番号1〜20）</h1>
 
   <div class="layout">
+    <!-- 左：問題・操作 -->
     <section class="panel">
       <div class="top">
         <div class="pill">時間：<b id="time">00:00.0</b></div>
@@ -248,13 +275,21 @@
         <div class="tag wait" id="tag">待機</div>
       </div>
 
+      <div class="result" id="resultBox">
+        <div class="big" id="resultBig">記録：—</div>
+        <div class="small" id="resultSmall">
+          ルール：ミス +5秒 / 3連続正解で -2秒。<br>
+          原子番号の問題は 1〜20 のみ。
+        </div>
+      </div>
+
       <div class="note">
-        ルール：ミスごとに <b>+5秒</b>。<br>
-        コンボ：<b>3連続正解ごとに -2秒</b>。<br>
-        原子番号の問題は <b>1〜20のみ</b>（21以上は出しません）。
+        ※マス内に原子番号は表示しません（ズレ防止）。<br>
+        ※原子番号21以上は「元素記号」問題のみ出題。
       </div>
     </section>
 
+    <!-- 右：周期表 -->
     <section class="panel">
       <div class="ptable" id="grid" aria-label="周期表"></div>
     </section>
@@ -302,7 +337,8 @@ const elements = [
   {Z:82, s:"Pb", p:6, g:14},
 ];
 
-/* ===== 位置マップ ===== */
+const Z_MAX_FOR_NUMBER_QUIZ = 20;
+
 const pos = {};
 elements.forEach(e => pos[`${e.p}-${e.g}`] = e);
 
@@ -316,6 +352,10 @@ const openedEl = document.getElementById("opened");
 const questionEl = document.getElementById("question");
 const msgText = document.getElementById("msgText");
 const tag = document.getElementById("tag");
+
+const resultBig = document.getElementById("resultBig");
+const resultSmall = document.getElementById("resultSmall");
+
 const startBtn = document.getElementById("start");
 const resetBtn = document.getElementById("reset");
 
@@ -332,7 +372,7 @@ let bonus = 0;
 
 let running = false;
 let startTime = null;
-let finalTime = null; // ★終了時刻を固定
+let finalTime = null;
 
 const PENALTY_PER_MISS = 5;
 const COMBO_STEP = 3;
@@ -395,8 +435,8 @@ function updateHUD(){
   progressEl.textContent = `${Math.min(index+1, order.length)} / ${order.length}`;
 }
 
-/* ★ runningに依存しない（終了後も計算できる） */
-function totalTime(){
+/* 終了後も計算できる。終了時は finalTime を使う */
+function totalTimeNow(){
   if(startTime === null) return 0;
   const elapsed = (performance.now() - startTime) / 1000;
   return Math.max(0, elapsed + penalty - bonus);
@@ -411,31 +451,37 @@ function formatTime(sec){
   return `${mm}:${ss}.${d}`;
 }
 
-/* ===== 出題：元素記号 or 原子番号(<=20のみ) ===== */
+/* ===== 出題（元素記号 or 原子番号1〜20のみ） ===== */
 function nextQuestion(){
   if(index >= order.length){
-    finalTime = totalTime(); // ★終了瞬間を固定
+    finalTime = totalTimeNow();        // ★終了瞬間を固定
     running = false;
     startBtn.disabled = false;
 
-    questionEl.textContent = `終了！ 記録 ${formatTime(finalTime)}`;
-    setStatus("good", `ミス${miss}回 / ペナルティ+${penalty}s / ボーナス-${bonus}s`);
+    // ★必ず画面内に記録を出す
+    const ft = formatTime(finalTime);
+    questionEl.textContent = `終了！ 記録 ${ft}`;
+    timeEl.textContent = ft;
+
+    setStatus("good", "終了しました。記録を確認してください。");
+    resultBig.textContent = `記録：${ft}`;
+    resultSmall.textContent =
+      `ミス ${miss}回（+${penalty}s） / ボーナス -${bonus}s（3連続ごとに-2s）`;
+
     updateHUD();
-    timeEl.textContent = formatTime(finalTime); // ★表示も固定
     return;
   }
 
   const ans = order[index];
 
-  // 50%で「元素記号」、50%で「原子番号(<=20)」を狙うが、
-  // 答えの元素が21以上なら原子番号問題は出さない。
-  const canZ = (ans.Z <= 20);
-  const type = (Math.random() < 0.5 || !canZ) ? "sym" : "num";
+  // ★ここが重要：Z>20は絶対に元素記号問題
+  const canNumber = (ans.Z <= Z_MAX_FOR_NUMBER_QUIZ);
+  const askNumber = canNumber && (Math.random() < 0.5); // canNumber のときだけ 50%
 
-  if(type === "sym"){
-    questionEl.textContent = `元素記号「${ans.s}」の場所をタップ`;
-  }else{
+  if(askNumber){
     questionEl.textContent = `原子番号「${ans.Z}」の場所をタップ`;
+  }else{
+    questionEl.textContent = `元素記号「${ans.s}」の場所をタップ`;
   }
 
   setStatus("wait", "答えの場所をタップしてください。");
@@ -479,7 +525,7 @@ function onPick(cell, e){
 /* ===== タイマー更新 ===== */
 function tick(){
   if(!running) return;
-  timeEl.textContent = formatTime(totalTime());
+  timeEl.textContent = formatTime(totalTimeNow());
   requestAnimationFrame(tick);
 }
 
@@ -487,8 +533,7 @@ function tick(){
 function startGame(){
   if(running) return;
 
-  finalTime = null;
-
+  // リセット（開放状態も）
   opened.clear();
   document.querySelectorAll(".cell.open").forEach(c => c.classList.remove("open"));
 
@@ -502,8 +547,16 @@ function startGame(){
 
   running = true;
   startTime = performance.now();
+  finalTime = null;
+
   startBtn.disabled = true;
 
+  // 結果欄を初期化
+  resultBig.textContent = "記録：—";
+  resultSmall.textContent =
+    "ルール：ミス +5秒 / 3連続正解で -2秒。原子番号の問題は 1〜20 のみ。";
+
+  setStatus("wait", "開始！");
   updateHUD();
   nextQuestion();
   tick();
@@ -513,8 +566,8 @@ function resetGame(){
   running = false;
   startBtn.disabled = false;
 
-  finalTime = null;
   startTime = null;
+  finalTime = null;
 
   opened.clear();
   document.querySelectorAll(".cell.open").forEach(c => c.classList.remove("open"));
@@ -527,6 +580,10 @@ function resetGame(){
 
   questionEl.textContent = "スタートを押してください";
   setStatus("wait", "スタート待ち。");
+
+  resultBig.textContent = "記録：—";
+  resultSmall.textContent =
+    "ルール：ミス +5秒 / 3連続正解で -2秒。原子番号の問題は 1〜20 のみ。";
 }
 
 startBtn.addEventListener("click", startGame);
