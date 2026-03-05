@@ -3,360 +3,541 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>周期表タイムアタック</title>
+<title>周期表タイムアタック（iPad横最適化）</title>
 
 <style>
+  :root{
+    --bg:#0b1020;
+    --panel:#111832;
+    --text:#e8ecff;
+    --muted:#aab4e6;
 
-body{
-font-family:sans-serif;
-background:#0b1020;
-color:white;
-margin:0;
-padding:20px;
-}
+    --cell-bg: rgba(255,255,255,0.04);
+    --cell-border: rgba(255,255,255,0.32);
+    --cell-border-strong: rgba(255,255,255,0.55);
 
-h1{
-margin:0 0 10px 0;
-}
+    --good-bg: rgba(57,217,138,0.28);
+    --good-border: rgba(57,217,138,0.90);
 
-.top{
-display:flex;
-gap:15px;
-flex-wrap:wrap;
-margin-bottom:10px;
-}
+    --bad-bg: rgba(255,92,124,0.22);
+    --bad-border: rgba(255,92,124,0.90);
+  }
 
-.box{
-background:#111832;
-padding:8px 12px;
-border-radius:8px;
-}
+  *{box-sizing:border-box}
+  body{
+    margin:0;
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans JP", sans-serif;
+    background: radial-gradient(1200px 800px at 25% 15%, #1b2a6b 0%, transparent 55%),
+                radial-gradient(900px 600px at 85% 20%, #5b1b5f 0%, transparent 55%),
+                var(--bg);
+    color: var(--text);
+  }
 
-button{
-padding:8px 14px;
-border-radius:8px;
-border:none;
-background:#29d39a;
-font-weight:bold;
-cursor:pointer;
-}
+  .wrap{
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 14px 14px 18px;
+  }
 
-.grid{
-display:grid;
-grid-template-columns:repeat(18,40px);
-gap:4px;
-margin-top:15px;
-}
+  h1{
+    margin: 0 0 10px;
+    font-size: 20px;
+    letter-spacing: .02em;
+  }
 
-.cell{
-height:40px;
-border:1px solid #333;
-display:flex;
-align-items:center;
-justify-content:center;
-position:relative;
-cursor:pointer;
-}
+  .layout{
+    display:grid;
+    grid-template-columns: 380px 1fr;
+    gap: 12px;
+    align-items:start;
+  }
 
-.cell.open{
-background:#182048;
-}
+  /* 画面が狭いときは縦積み */
+  @media (max-width: 900px){
+    .layout{grid-template-columns: 1fr;}
+  }
 
-.sym{
-font-weight:bold;
-}
+  .panel{
+    background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.03));
+    border: 1px solid rgba(255,255,255,.10);
+    border-radius: 14px;
+    padding: 12px;
+    box-shadow: 0 10px 30px rgba(0,0,0,.25);
+  }
 
-.num{
-position:absolute;
-top:2px;
-left:4px;
-font-size:10px;
-opacity:.7;
-}
+  .top{
+    display:flex;
+    flex-wrap:wrap;
+    gap:10px;
+    margin-bottom: 10px;
+  }
 
-.good{
-background:#2fa86c !important;
-}
+  .pill{
+    background: rgba(0,0,0,.18);
+    border: 1px solid rgba(255,255,255,.14);
+    border-radius: 999px;
+    padding: 7px 10px;
+    color: var(--muted);
+    font-size: 13px;
+    display:flex;
+    gap:8px;
+    align-items:center;
+    white-space:nowrap;
+  }
+  .pill b{color:var(--text); font-weight:800; font-variant-numeric: tabular-nums;}
 
-.bad{
-background:#a83c4b !important;
-}
+  .btns{display:flex; gap:8px; flex-wrap:wrap; margin-top: 4px;}
+  button{
+    padding: 10px 14px;
+    border-radius: 12px;
+    border: 1px solid rgba(255,255,255,.16);
+    background: rgba(0,0,0,.20);
+    color: var(--text);
+    font-weight: 800;
+    cursor:pointer;
+    user-select:none;
+    transition: transform .06s ease, background .2s ease, border-color .2s ease;
+  }
+  button:hover{background: rgba(255,255,255,.08); border-color: rgba(255,255,255,.28);}
+  button:active{transform: translateY(1px);}
+  button.primary{
+    background: rgba(57,217,138,.16);
+    border-color: rgba(57,217,138,.45);
+  }
+  button.primary:hover{
+    background: rgba(57,217,138,.22);
+    border-color: rgba(57,217,138,.65);
+  }
+  button:disabled{opacity:.5; cursor:not-allowed;}
 
-.gap{
-opacity:.15;
-cursor:default;
-}
+  .qtitle{
+    color: var(--muted);
+    font-size: 12px;
+    margin-bottom: 6px;
+  }
+  .question{
+    font-size: 22px;
+    font-weight: 900;
+    line-height: 1.25;
+    letter-spacing: .01em;
+    margin: 0 0 10px;
+  }
 
+  .msg{
+    border-radius: 14px;
+    padding: 10px 12px;
+    border: 1px solid rgba(255,255,255,.10);
+    background: rgba(0,0,0,.18);
+    min-height: 54px;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:10px;
+  }
+  .tag{
+    font-size: 12px;
+    padding: 4px 8px;
+    border-radius: 999px;
+    border: 1px solid rgba(255,255,255,.14);
+    background: rgba(255,255,255,.06);
+    color: var(--muted);
+    white-space:nowrap;
+  }
+  .tag.wait{color:#fff0c2; border-color: rgba(255,209,102,.55); background: rgba(255,209,102,.12);}
+  .tag.good{color:#bff7dd; border-color: rgba(57,217,138,.55); background: rgba(57,217,138,.14);}
+  .tag.bad{color:#ffd0da; border-color: rgba(255,92,124,.55); background: rgba(255,92,124,.12);}
+
+  .note{
+    margin-top: 10px;
+    color: rgba(232,236,255,.72);
+    font-size: 12px;
+    line-height: 1.5;
+  }
+
+  /* ===== 周期表（iPad横で押しやすいサイズ） =====
+     18列なので、iPad横(1024px)で横幅に収まるように
+     セル幅を自動調整（だいたい 46〜54px）
+  */
+  .ptable{
+    display:grid;
+    grid-template-columns: repeat(18, minmax(44px, 1fr));
+    gap: 6px;
+    align-items:stretch;
+  }
+
+  .cell{
+    height: 56px;
+    border-radius: 12px;
+    background: var(--cell-bg);
+    border: 2px solid var(--cell-border);
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    cursor:pointer;
+    user-select:none;
+    transition: transform .06s ease, background .18s ease, border-color .18s ease, box-shadow .18s ease;
+    position:relative;
+    overflow:hidden;
+  }
+  .cell:hover{
+    border-color: var(--cell-border-strong);
+    background: rgba(255,255,255,0.07);
+  }
+  .cell:active{transform: translateY(1px);}
+
+  .cell.gap{
+    cursor:default;
+    border: 2px dashed rgba(255,255,255,0.16);
+    background: transparent;
+    opacity: .35;
+  }
+  .cell.gap:hover{border-color: rgba(255,255,255,0.16); background:transparent;}
+
+  /* 開放済み：文字表示（番号は出さない） */
+  .sym{
+    font-size: 18px;
+    font-weight: 950;
+    letter-spacing: .02em;
+    opacity: 0;
+    transform: translateY(2px);
+    transition: opacity .18s ease, transform .18s ease;
+    pointer-events:none;
+  }
+  .cell.open .sym{
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  /* エフェクト */
+  .cell.flash-good{
+    border-color: var(--good-border) !important;
+    background: var(--good-bg) !important;
+    box-shadow: 0 0 0 3px rgba(57,217,138,.12) inset, 0 0 18px rgba(57,217,138,.25);
+  }
+  .cell.flash-bad{
+    border-color: var(--bad-border) !important;
+    background: var(--bad-bg) !important;
+    box-shadow: 0 0 0 3px rgba(255,92,124,.10) inset, 0 0 18px rgba(255,92,124,.22);
+  }
+
+  /* iPad横(1024px前後)に寄せて、もう少し大きく */
+  @media (min-width: 980px) and (max-width: 1200px){
+    .ptable{gap: 6px;}
+    .cell{height: 58px;}
+    .sym{font-size: 19px;}
+  }
 </style>
 </head>
 
 <body>
+<div class="wrap">
+  <h1>周期表タイムアタック（原子番号 / 元素記号）</h1>
 
-<h1>周期表タイムアタック</h1>
+  <div class="layout">
+    <!-- 左：問題・操作 -->
+    <section class="panel">
+      <div class="top">
+        <div class="pill">時間：<b id="time">00:00.0</b></div>
+        <div class="pill">ミス：<b id="miss">0</b></div>
+        <div class="pill">コンボ：<b id="combo">0</b></div>
+        <div class="pill">進行：<b id="progress">0 / 0</b></div>
+        <div class="pill">解放：<b id="opened">0</b></div>
+      </div>
 
-<div class="top">
+      <div class="btns">
+        <button id="start" class="primary">スタート</button>
+        <button id="reset">リセット</button>
+      </div>
 
-<div class="box">時間 <span id="time">0.0</span>s</div>
-<div class="box">ミス <span id="miss">0</span></div>
-<div class="box">コンボ <span id="combo">0</span></div>
-<div class="box">進行 <span id="progress">0</span></div>
+      <div style="height:10px"></div>
 
-<button id="start">スタート</button>
-<button id="reset">リセット</button>
+      <div class="qtitle">問題</div>
+      <div class="question" id="question">スタートを押してください</div>
 
+      <div class="msg">
+        <div id="msgText">スタート待ち。</div>
+        <div class="tag wait" id="tag">待機</div>
+      </div>
+
+      <div class="note">
+        ルール：ミスごとに <b>+5秒</b>。<br>
+        コンボ：<b>3連続正解ごとに -2秒</b>（タイムから引きます）。<br>
+        ※マス内に原子番号は表示しません（ズレ防止）。
+      </div>
+    </section>
+
+    <!-- 右：周期表 -->
+    <section class="panel">
+      <div class="ptable" id="grid" aria-label="周期表"></div>
+    </section>
+  </div>
 </div>
 
-<div id="question"></div>
-
-<div class="grid" id="grid"></div>
-
 <script>
+/* ===== 元素（高校化学頻出30） ===== */
+const elements = [
+  {Z:1,  s:"H",  p:1, g:1},
+  {Z:2,  s:"He", p:1, g:18},
 
-// ===== 元素 =====
+  {Z:3,  s:"Li", p:2, g:1},
+  {Z:4,  s:"Be", p:2, g:2},
+  {Z:5,  s:"B",  p:2, g:13},
+  {Z:6,  s:"C",  p:2, g:14},
+  {Z:7,  s:"N",  p:2, g:15},
+  {Z:8,  s:"O",  p:2, g:16},
+  {Z:9,  s:"F",  p:2, g:17},
+  {Z:10, s:"Ne", p:2, g:18},
 
-const elements=[
+  {Z:11, s:"Na", p:3, g:1},
+  {Z:12, s:"Mg", p:3, g:2},
+  {Z:13, s:"Al", p:3, g:13},
+  {Z:14, s:"Si", p:3, g:14},
+  {Z:15, s:"P",  p:3, g:15},
+  {Z:16, s:"S",  p:3, g:16},
+  {Z:17, s:"Cl", p:3, g:17},
+  {Z:18, s:"Ar", p:3, g:18},
 
-{Z:1,s:"H",p:1,g:1},
-{Z:2,s:"He",p:1,g:18},
+  {Z:19, s:"K",  p:4, g:1},
+  {Z:20, s:"Ca", p:4, g:2},
 
-{Z:3,s:"Li",p:2,g:1},
-{Z:4,s:"Be",p:2,g:2},
-{Z:5,s:"B",p:2,g:13},
-{Z:6,s:"C",p:2,g:14},
-{Z:7,s:"N",p:2,g:15},
-{Z:8,s:"O",p:2,g:16},
-{Z:9,s:"F",p:2,g:17},
-{Z:10,s:"Ne",p:2,g:18},
+  {Z:26, s:"Fe", p:4, g:8},
+  {Z:29, s:"Cu", p:4, g:11},
+  {Z:30, s:"Zn", p:4, g:12},
 
-{Z:11,s:"Na",p:3,g:1},
-{Z:12,s:"Mg",p:3,g:2},
-{Z:13,s:"Al",p:3,g:13},
-{Z:14,s:"Si",p:3,g:14},
-{Z:15,s:"P",p:3,g:15},
-{Z:16,s:"S",p:3,g:16},
-{Z:17,s:"Cl",p:3,g:17},
-{Z:18,s:"Ar",p:3,g:18},
+  {Z:47, s:"Ag", p:5, g:11},
+  {Z:50, s:"Sn", p:5, g:14},
+  {Z:53, s:"I",  p:5, g:17},
+  {Z:56, s:"Ba", p:6, g:2},
 
-{Z:19,s:"K",p:4,g:1},
-{Z:20,s:"Ca",p:4,g:2},
+  {Z:79, s:"Au", p:6, g:11},
+  {Z:80, s:"Hg", p:6, g:12},
+  {Z:82, s:"Pb", p:6, g:14},
+];
 
-{Z:26,s:"Fe",p:4,g:8},
-{Z:29,s:"Cu",p:4,g:11},
-{Z:30,s:"Zn",p:4,g:12},
+/* ===== 位置マップ ===== */
+const pos = {};
+elements.forEach(e => pos[`${e.p}-${e.g}`] = e);
 
-{Z:47,s:"Ag",p:5,g:11},
-{Z:50,s:"Sn",p:5,g:14},
-{Z:53,s:"I",p:5,g:17},
-{Z:56,s:"Ba",p:6,g:2},
+/* ===== UI ===== */
+const grid = document.getElementById("grid");
+const timeEl = document.getElementById("time");
+const missEl = document.getElementById("miss");
+const comboEl = document.getElementById("combo");
+const progressEl = document.getElementById("progress");
+const openedEl = document.getElementById("opened");
+const questionEl = document.getElementById("question");
+const msgText = document.getElementById("msgText");
+const tag = document.getElementById("tag");
 
-{Z:79,s:"Au",p:6,g:11},
-{Z:80,s:"Hg",p:6,g:12},
-{Z:82,s:"Pb",p:6,g:14},
+const startBtn = document.getElementById("start");
+const resetBtn = document.getElementById("reset");
 
-]
+/* ===== 状態 ===== */
+let order = [];
+let index = 0;
+let opened = new Set();
 
-const map={}
-elements.forEach(e=>map[e.p+"-"+e.g]=e)
+let combo = 0;
+let miss = 0;
 
-// ===== 状態 =====
+let penalty = 0; // +5s per miss
+let bonus = 0;   // -2s per 3 combo
 
-let order=[]
-let index=0
+let running = false;
+let startTime = null;
 
-let combo=0
-let miss=0
+const PENALTY_PER_MISS = 5;
+const COMBO_STEP = 3;
+const BONUS_PER_STEP = 2;
 
-let penalty=0
-let bonus=0
+/* ===== 描画：枠だけ（文字は隠す） ===== */
+function buildGrid(){
+  grid.innerHTML = "";
+  for(let p=1; p<=7; p++){
+    for(let g=1; g<=18; g++){
+      const key = `${p}-${g}`;
+      const e = pos[key];
 
-let startTime=null
-let running=false
+      const cell = document.createElement("div");
+      if(!e){
+        cell.className = "cell gap";
+        grid.appendChild(cell);
+        continue;
+      }
 
-// ===== グリッド作成 =====
+      cell.className = "cell";
+      cell.dataset.sym = e.s;
 
-const grid=document.getElementById("grid")
+      // 表示は元素記号のみ（開いたときだけ見える）
+      const sym = document.createElement("div");
+      sym.className = "sym";
+      sym.textContent = e.s;
+      cell.appendChild(sym);
 
-for(let p=1;p<=7;p++){
-
-for(let g=1;g<=18;g++){
-
-let key=p+"-"+g
-
-let d=document.createElement("div")
-
-if(map[key]){
-
-d.className="cell"
-
-d.dataset.sym=map[key].s
-
-d.onclick=()=>clickCell(d,map[key])
-
-let num=document.createElement("div")
-num.className="num"
-num.innerText=map[key].Z
-
-let sym=document.createElement("div")
-sym.className="sym"
-sym.innerText=map[key].s
-
-sym.style.display="none"
-
-d.appendChild(num)
-d.appendChild(sym)
-
-}else{
-
-d.className="cell gap"
-
+      cell.addEventListener("click", () => onPick(cell, e));
+      grid.appendChild(cell);
+    }
+  }
 }
 
-grid.appendChild(d)
-
+/* ===== ユーティリティ ===== */
+function shuffle(arr){
+  for(let i=arr.length-1;i>0;i--){
+    const j = Math.floor(Math.random()*(i+1));
+    [arr[i],arr[j]]=[arr[j],arr[i]];
+  }
+  return arr;
 }
+
+function setStatus(kind, text){
+  tag.className = "tag " + kind;
+  tag.textContent = kind === "wait" ? "待機" : (kind === "good" ? "正解" : "不正解");
+  msgText.textContent = text;
 }
 
-// ===== 問題 =====
+function flash(cell, good){
+  const cls = good ? "flash-good" : "flash-bad";
+  cell.classList.add(cls);
+  setTimeout(()=>cell.classList.remove(cls), 220);
+}
 
+function updateHUD(){
+  missEl.textContent = miss;
+  comboEl.textContent = combo;
+  openedEl.textContent = opened.size;
+  progressEl.textContent = `${Math.min(index+1, order.length)} / ${order.length}`;
+}
+
+function totalTime(){
+  if(!running || startTime === null) return 0;
+  const elapsed = (performance.now() - startTime) / 1000;
+  const t = elapsed + penalty - bonus;
+  return Math.max(0, t);
+}
+
+function formatTime(sec){
+  const m = Math.floor(sec/60);
+  const s = sec - m*60;
+  const mm = String(m).padStart(2,"0");
+  const ss = String(Math.floor(s)).padStart(2,"0");
+  const d = Math.floor((s - Math.floor(s))*10);
+  return `${mm}:${ss}.${d}`;
+}
+
+/* ===== 出題（元素記号 or 原子番号のみ） ===== */
 function nextQuestion(){
+  if(index >= order.length){
+    running = false;
+    startBtn.disabled = false;
 
-if(index>=order.length){
+    questionEl.textContent = `終了！ 記録 ${formatTime(totalTime())}`;
+    setStatus("good", `ミス${miss}回 / ペナルティ+${penalty}s / ボーナス-${bonus}s`);
+    return;
+  }
 
-running=false
+  const e = order[index];
+  const type = Math.random() < 0.5 ? "sym" : "num";
 
-let total=(performance.now()-startTime)/1000+penalty-bonus
-
-document.getElementById("question").innerText="終了！ 記録 "+total.toFixed(1)+"秒"
-
-return
-
+  if(type === "sym"){
+    questionEl.textContent = `元素記号「${e.s}」の場所をタップ`;
+  }else{
+    questionEl.textContent = `原子番号「${e.Z}」の場所をタップ`;
+  }
+  setStatus("wait", "答えの場所をタップしてください。");
+  updateHUD();
 }
 
-let e=order[index]
+/* ===== クリック判定 ===== */
+function onPick(cell, e){
+  if(!running) return;
+  if(opened.has(e.s)) return; // 既に開いたマスは無視
 
-let type=Math.random()<0.5?"sym":"num"
+  const ans = order[index];
 
-if(type=="sym")
-document.getElementById("question").innerText="元素記号 "+e.s+" の場所"
+  if(e.s === ans.s){
+    flash(cell, true);
 
-else
-document.getElementById("question").innerText="原子番号 "+e.Z+" の場所"
+    // 開放
+    cell.classList.add("open");
+    opened.add(e.s);
 
-document.getElementById("progress").innerText=index+"/"+order.length
+    // コンボ & ボーナス
+    combo++;
+    if(combo % COMBO_STEP === 0){
+      bonus += BONUS_PER_STEP;
+    }
 
+    setStatus("good", `正解！ ${e.s} を解放`);
+    index++;
+
+    setTimeout(nextQuestion, 240);
+  }else{
+    flash(cell, false);
+
+    combo = 0;
+    miss++;
+    penalty += PENALTY_PER_MISS;
+
+    setStatus("bad", `不正解… +${PENALTY_PER_MISS}s（累積+${penalty}s） もう一度`);
+    updateHUD();
+  }
 }
 
-// ===== クリック =====
-
-function clickCell(cell,e){
-
-if(!running) return
-
-let ans=order[index]
-
-if(e.s==ans.s){
-
-cell.classList.add("good")
-
-setTimeout(()=>cell.classList.remove("good"),200)
-
-cell.querySelector(".sym").style.display="block"
-
-cell.classList.add("open")
-
-combo++
-
-if(combo%3==0){
-
-bonus+=2
-
-}
-
-index++
-
-nextQuestion()
-
-}else{
-
-cell.classList.add("bad")
-
-setTimeout(()=>cell.classList.remove("bad"),200)
-
-combo=0
-
-miss++
-
-penalty+=5
-
-document.getElementById("miss").innerText=miss
-
-}
-
-document.getElementById("combo").innerText=combo
-
-}
-
-// ===== タイマー =====
-
+/* ===== タイマー更新 ===== */
 function tick(){
-
-if(!running) return
-
-let t=(performance.now()-startTime)/1000+penalty-bonus
-
-document.getElementById("time").innerText=t.toFixed(1)
-
-requestAnimationFrame(tick)
-
+  if(!running) return;
+  timeEl.textContent = formatTime(totalTime());
+  requestAnimationFrame(tick);
 }
 
-// ===== スタート =====
+/* ===== スタート / リセット ===== */
+function startGame(){
+  if(running) return;
 
-document.getElementById("start").onclick=()=>{
+  // リセット（開放状態も）
+  opened.clear();
+  document.querySelectorAll(".cell.open").forEach(c => c.classList.remove("open"));
 
-order=[...elements].sort(()=>Math.random()-.5)
+  order = shuffle([...elements]);
+  index = 0;
 
-index=0
+  combo = 0;
+  miss = 0;
+  penalty = 0;
+  bonus = 0;
 
-combo=0
-miss=0
-penalty=0
-bonus=0
+  running = true;
+  startTime = performance.now();
+  startBtn.disabled = true;
 
-document.querySelectorAll(".sym").forEach(s=>s.style.display="none")
-
-document.querySelectorAll(".cell").forEach(c=>c.classList.remove("open"))
-
-document.getElementById("miss").innerText=0
-document.getElementById("combo").innerText=0
-
-startTime=performance.now()
-
-running=true
-
-nextQuestion()
-
-tick()
-
+  updateHUD();
+  nextQuestion();
+  tick();
 }
 
-// ===== リセット =====
+function resetGame(){
+  running = false;
+  startBtn.disabled = false;
 
-document.getElementById("reset").onclick=()=>{
+  opened.clear();
+  document.querySelectorAll(".cell.open").forEach(c => c.classList.remove("open"));
 
-running=false
+  timeEl.textContent = "00:00.0";
+  missEl.textContent = "0";
+  comboEl.textContent = "0";
+  openedEl.textContent = "0";
+  progressEl.textContent = "0 / 0";
 
-document.getElementById("time").innerText="0.0"
-
-document.getElementById("question").innerText="スタートを押してください"
-
-document.querySelectorAll(".sym").forEach(s=>s.style.display="none")
-
-document.querySelectorAll(".cell").forEach(c=>c.classList.remove("open"))
-
+  questionEl.textContent = "スタートを押してください";
+  setStatus("wait", "スタート待ち。");
 }
 
+startBtn.addEventListener("click", startGame);
+resetBtn.addEventListener("click", resetGame);
+
+/* init */
+buildGrid();
+resetGame();
 </script>
-
 </body>
 </html>
