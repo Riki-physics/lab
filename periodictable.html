@@ -1,0 +1,362 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>周期表タイムアタック</title>
+
+<style>
+
+body{
+font-family:sans-serif;
+background:#0b1020;
+color:white;
+margin:0;
+padding:20px;
+}
+
+h1{
+margin:0 0 10px 0;
+}
+
+.top{
+display:flex;
+gap:15px;
+flex-wrap:wrap;
+margin-bottom:10px;
+}
+
+.box{
+background:#111832;
+padding:8px 12px;
+border-radius:8px;
+}
+
+button{
+padding:8px 14px;
+border-radius:8px;
+border:none;
+background:#29d39a;
+font-weight:bold;
+cursor:pointer;
+}
+
+.grid{
+display:grid;
+grid-template-columns:repeat(18,40px);
+gap:4px;
+margin-top:15px;
+}
+
+.cell{
+height:40px;
+border:1px solid #333;
+display:flex;
+align-items:center;
+justify-content:center;
+position:relative;
+cursor:pointer;
+}
+
+.cell.open{
+background:#182048;
+}
+
+.sym{
+font-weight:bold;
+}
+
+.num{
+position:absolute;
+top:2px;
+left:4px;
+font-size:10px;
+opacity:.7;
+}
+
+.good{
+background:#2fa86c !important;
+}
+
+.bad{
+background:#a83c4b !important;
+}
+
+.gap{
+opacity:.15;
+cursor:default;
+}
+
+</style>
+</head>
+
+<body>
+
+<h1>周期表タイムアタック</h1>
+
+<div class="top">
+
+<div class="box">時間 <span id="time">0.0</span>s</div>
+<div class="box">ミス <span id="miss">0</span></div>
+<div class="box">コンボ <span id="combo">0</span></div>
+<div class="box">進行 <span id="progress">0</span></div>
+
+<button id="start">スタート</button>
+<button id="reset">リセット</button>
+
+</div>
+
+<div id="question"></div>
+
+<div class="grid" id="grid"></div>
+
+<script>
+
+// ===== 元素 =====
+
+const elements=[
+
+{Z:1,s:"H",p:1,g:1},
+{Z:2,s:"He",p:1,g:18},
+
+{Z:3,s:"Li",p:2,g:1},
+{Z:4,s:"Be",p:2,g:2},
+{Z:5,s:"B",p:2,g:13},
+{Z:6,s:"C",p:2,g:14},
+{Z:7,s:"N",p:2,g:15},
+{Z:8,s:"O",p:2,g:16},
+{Z:9,s:"F",p:2,g:17},
+{Z:10,s:"Ne",p:2,g:18},
+
+{Z:11,s:"Na",p:3,g:1},
+{Z:12,s:"Mg",p:3,g:2},
+{Z:13,s:"Al",p:3,g:13},
+{Z:14,s:"Si",p:3,g:14},
+{Z:15,s:"P",p:3,g:15},
+{Z:16,s:"S",p:3,g:16},
+{Z:17,s:"Cl",p:3,g:17},
+{Z:18,s:"Ar",p:3,g:18},
+
+{Z:19,s:"K",p:4,g:1},
+{Z:20,s:"Ca",p:4,g:2},
+
+{Z:26,s:"Fe",p:4,g:8},
+{Z:29,s:"Cu",p:4,g:11},
+{Z:30,s:"Zn",p:4,g:12},
+
+{Z:47,s:"Ag",p:5,g:11},
+{Z:50,s:"Sn",p:5,g:14},
+{Z:53,s:"I",p:5,g:17},
+{Z:56,s:"Ba",p:6,g:2},
+
+{Z:79,s:"Au",p:6,g:11},
+{Z:80,s:"Hg",p:6,g:12},
+{Z:82,s:"Pb",p:6,g:14},
+
+]
+
+const map={}
+elements.forEach(e=>map[e.p+"-"+e.g]=e)
+
+// ===== 状態 =====
+
+let order=[]
+let index=0
+
+let combo=0
+let miss=0
+
+let penalty=0
+let bonus=0
+
+let startTime=null
+let running=false
+
+// ===== グリッド作成 =====
+
+const grid=document.getElementById("grid")
+
+for(let p=1;p<=7;p++){
+
+for(let g=1;g<=18;g++){
+
+let key=p+"-"+g
+
+let d=document.createElement("div")
+
+if(map[key]){
+
+d.className="cell"
+
+d.dataset.sym=map[key].s
+
+d.onclick=()=>clickCell(d,map[key])
+
+let num=document.createElement("div")
+num.className="num"
+num.innerText=map[key].Z
+
+let sym=document.createElement("div")
+sym.className="sym"
+sym.innerText=map[key].s
+
+sym.style.display="none"
+
+d.appendChild(num)
+d.appendChild(sym)
+
+}else{
+
+d.className="cell gap"
+
+}
+
+grid.appendChild(d)
+
+}
+}
+
+// ===== 問題 =====
+
+function nextQuestion(){
+
+if(index>=order.length){
+
+running=false
+
+let total=(performance.now()-startTime)/1000+penalty-bonus
+
+document.getElementById("question").innerText="終了！ 記録 "+total.toFixed(1)+"秒"
+
+return
+
+}
+
+let e=order[index]
+
+let type=Math.random()<0.5?"sym":"num"
+
+if(type=="sym")
+document.getElementById("question").innerText="元素記号 "+e.s+" の場所"
+
+else
+document.getElementById("question").innerText="原子番号 "+e.Z+" の場所"
+
+document.getElementById("progress").innerText=index+"/"+order.length
+
+}
+
+// ===== クリック =====
+
+function clickCell(cell,e){
+
+if(!running) return
+
+let ans=order[index]
+
+if(e.s==ans.s){
+
+cell.classList.add("good")
+
+setTimeout(()=>cell.classList.remove("good"),200)
+
+cell.querySelector(".sym").style.display="block"
+
+cell.classList.add("open")
+
+combo++
+
+if(combo%3==0){
+
+bonus+=2
+
+}
+
+index++
+
+nextQuestion()
+
+}else{
+
+cell.classList.add("bad")
+
+setTimeout(()=>cell.classList.remove("bad"),200)
+
+combo=0
+
+miss++
+
+penalty+=5
+
+document.getElementById("miss").innerText=miss
+
+}
+
+document.getElementById("combo").innerText=combo
+
+}
+
+// ===== タイマー =====
+
+function tick(){
+
+if(!running) return
+
+let t=(performance.now()-startTime)/1000+penalty-bonus
+
+document.getElementById("time").innerText=t.toFixed(1)
+
+requestAnimationFrame(tick)
+
+}
+
+// ===== スタート =====
+
+document.getElementById("start").onclick=()=>{
+
+order=[...elements].sort(()=>Math.random()-.5)
+
+index=0
+
+combo=0
+miss=0
+penalty=0
+bonus=0
+
+document.querySelectorAll(".sym").forEach(s=>s.style.display="none")
+
+document.querySelectorAll(".cell").forEach(c=>c.classList.remove("open"))
+
+document.getElementById("miss").innerText=0
+document.getElementById("combo").innerText=0
+
+startTime=performance.now()
+
+running=true
+
+nextQuestion()
+
+tick()
+
+}
+
+// ===== リセット =====
+
+document.getElementById("reset").onclick=()=>{
+
+running=false
+
+document.getElementById("time").innerText="0.0"
+
+document.getElementById("question").innerText="スタートを押してください"
+
+document.querySelectorAll(".sym").forEach(s=>s.style.display="none")
+
+document.querySelectorAll(".cell").forEach(c=>c.classList.remove("open"))
+
+}
+
+</script>
+
+</body>
+</html>
