@@ -8,7 +8,6 @@
 <style>
   :root{
     --bg:#0b1020;
-    --panel:#111832;
     --text:#e8ecff;
     --muted:#aab4e6;
 
@@ -52,7 +51,6 @@
     align-items:start;
   }
 
-  /* 画面が狭いときは縦積み */
   @media (max-width: 900px){
     .layout{grid-template-columns: 1fr;}
   }
@@ -154,10 +152,6 @@
     line-height: 1.5;
   }
 
-  /* ===== 周期表（iPad横で押しやすいサイズ） =====
-     18列なので、iPad横(1024px)で横幅に収まるように
-     セル幅を自動調整（だいたい 46〜54px）
-  */
   .ptable{
     display:grid;
     grid-template-columns: repeat(18, minmax(44px, 1fr));
@@ -193,7 +187,6 @@
   }
   .cell.gap:hover{border-color: rgba(255,255,255,0.16); background:transparent;}
 
-  /* 開放済み：文字表示（番号は出さない） */
   .sym{
     font-size: 18px;
     font-weight: 950;
@@ -208,7 +201,6 @@
     transform: translateY(0);
   }
 
-  /* エフェクト */
   .cell.flash-good{
     border-color: var(--good-border) !important;
     background: var(--good-bg) !important;
@@ -220,9 +212,7 @@
     box-shadow: 0 0 0 3px rgba(255,92,124,.10) inset, 0 0 18px rgba(255,92,124,.22);
   }
 
-  /* iPad横(1024px前後)に寄せて、もう少し大きく */
   @media (min-width: 980px) and (max-width: 1200px){
-    .ptable{gap: 6px;}
     .cell{height: 58px;}
     .sym{font-size: 19px;}
   }
@@ -231,10 +221,9 @@
 
 <body>
 <div class="wrap">
-  <h1>周期表タイムアタック（原子番号 / 元素記号）</h1>
+  <h1>周期表タイムアタック（元素記号 / 原子番号1〜20）</h1>
 
   <div class="layout">
-    <!-- 左：問題・操作 -->
     <section class="panel">
       <div class="top">
         <div class="pill">時間：<b id="time">00:00.0</b></div>
@@ -261,12 +250,11 @@
 
       <div class="note">
         ルール：ミスごとに <b>+5秒</b>。<br>
-        コンボ：<b>3連続正解ごとに -2秒</b>（タイムから引きます）。<br>
-        ※マス内に原子番号は表示しません（ズレ防止）。
+        コンボ：<b>3連続正解ごとに -2秒</b>。<br>
+        原子番号の問題は <b>1〜20のみ</b>（21以上は出しません）。
       </div>
     </section>
 
-    <!-- 右：周期表 -->
     <section class="panel">
       <div class="ptable" id="grid" aria-label="周期表"></div>
     </section>
@@ -314,6 +302,9 @@ const elements = [
   {Z:82, s:"Pb", p:6, g:14},
 ];
 
+/* 原子番号問題に使うのは 1〜20 のみ */
+const zLimited = elements.filter(e => e.Z <= 20);
+
 /* ===== 位置マップ ===== */
 const pos = {};
 elements.forEach(e => pos[`${e.p}-${e.g}`] = e);
@@ -328,7 +319,6 @@ const openedEl = document.getElementById("opened");
 const questionEl = document.getElementById("question");
 const msgText = document.getElementById("msgText");
 const tag = document.getElementById("tag");
-
 const startBtn = document.getElementById("start");
 const resetBtn = document.getElementById("reset");
 
@@ -340,8 +330,8 @@ let opened = new Set();
 let combo = 0;
 let miss = 0;
 
-let penalty = 0; // +5s per miss
-let bonus = 0;   // -2s per 3 combo
+let penalty = 0;
+let bonus = 0;
 
 let running = false;
 let startTime = null;
@@ -350,7 +340,7 @@ const PENALTY_PER_MISS = 5;
 const COMBO_STEP = 3;
 const BONUS_PER_STEP = 2;
 
-/* ===== 描画：枠だけ（文字は隠す） ===== */
+/* ===== 描画 ===== */
 function buildGrid(){
   grid.innerHTML = "";
   for(let p=1; p<=7; p++){
@@ -368,7 +358,6 @@ function buildGrid(){
       cell.className = "cell";
       cell.dataset.sym = e.s;
 
-      // 表示は元素記号のみ（開いたときだけ見える）
       const sym = document.createElement("div");
       sym.className = "sym";
       sym.textContent = e.s;
@@ -411,8 +400,7 @@ function updateHUD(){
 function totalTime(){
   if(!running || startTime === null) return 0;
   const elapsed = (performance.now() - startTime) / 1000;
-  const t = elapsed + penalty - bonus;
-  return Math.max(0, t);
+  return Math.max(0, elapsed + penalty - bonus);
 }
 
 function formatTime(sec){
@@ -424,7 +412,7 @@ function formatTime(sec){
   return `${mm}:${ss}.${d}`;
 }
 
-/* ===== 出題（元素記号 or 原子番号のみ） ===== */
+/* ===== 出題：元素記号 or 原子番号(<=20のみ) ===== */
 function nextQuestion(){
   if(index >= order.length){
     running = false;
@@ -435,14 +423,19 @@ function nextQuestion(){
     return;
   }
 
-  const e = order[index];
-  const type = Math.random() < 0.5 ? "sym" : "num";
+  const ans = order[index];
+
+  // 50%で「元素記号」、50%で「原子番号(<=20)」を狙うが、
+  // 答えの元素が21以上なら原子番号問題は出さない。
+  const canZ = (ans.Z <= 20);
+  const type = (Math.random() < 0.5 || !canZ) ? "sym" : "num";
 
   if(type === "sym"){
-    questionEl.textContent = `元素記号「${e.s}」の場所をタップ`;
+    questionEl.textContent = `元素記号「${ans.s}」の場所をタップ`;
   }else{
-    questionEl.textContent = `原子番号「${e.Z}」の場所をタップ`;
+    questionEl.textContent = `原子番号「${ans.Z}」の場所をタップ`;
   }
+
   setStatus("wait", "答えの場所をタップしてください。");
   updateHUD();
 }
@@ -450,18 +443,16 @@ function nextQuestion(){
 /* ===== クリック判定 ===== */
 function onPick(cell, e){
   if(!running) return;
-  if(opened.has(e.s)) return; // 既に開いたマスは無視
+  if(opened.has(e.s)) return;
 
   const ans = order[index];
 
   if(e.s === ans.s){
     flash(cell, true);
 
-    // 開放
     cell.classList.add("open");
     opened.add(e.s);
 
-    // コンボ & ボーナス
     combo++;
     if(combo % COMBO_STEP === 0){
       bonus += BONUS_PER_STEP;
@@ -494,7 +485,6 @@ function tick(){
 function startGame(){
   if(running) return;
 
-  // リセット（開放状態も）
   opened.clear();
   document.querySelectorAll(".cell.open").forEach(c => c.classList.remove("open"));
 
