@@ -13,7 +13,6 @@
       --line:#d1d5db;
       --accent:#2563eb;
       --grid:#e5e7eb;
-      --soft:#eef4ff;
     }
     *{box-sizing:border-box}
     body{
@@ -135,6 +134,7 @@
       margin-top:14px;
       font-size:.96rem;
       color:var(--sub);
+      white-space:pre-wrap;
     }
     .stats{
       display:grid;
@@ -240,6 +240,7 @@
       </div>
 
       <div class="button-row">
+        <button id="syncBtn" class="action" type="button">時刻同期</button>
         <button id="micBtn" class="action primary" type="button">マイク開始</button>
         <button id="armBtn" class="action" type="button" disabled>時刻予約</button>
         <button id="stopBtn" class="action" type="button" disabled>停止</button>
@@ -247,7 +248,7 @@
       </div>
 
       <div class="status" id="status">状態: 未開始</div>
-      <div class="hint">記録間隔は 0.05 s 固定です。出力は t_s, freq_hz, df_hz の3列TSVです。</div>
+      <div class="hint">Arduino AP に接続した状態で使います。出力は t_s, freq_hz, df_hz の3列TSVです。</div>
     </div>
 
     <div class="card">
@@ -279,6 +280,7 @@
 
   <script>
     const SAMPLE_INTERVAL_MS = 50;
+    const ARDUINO_HOST = "http://192.168.4.1";
 
     const clockEl = document.getElementById("clock");
     const nextInfoEl = document.getElementById("nextInfo");
@@ -286,6 +288,7 @@
     const durationSecEl = document.getElementById("durationSec");
     const f0Input = document.getElementById("f0Input");
     const searchWidthInput = document.getElementById("searchWidthInput");
+    const syncBtn = document.getElementById("syncBtn");
     const micBtn = document.getElementById("micBtn");
     const armBtn = document.getElementById("armBtn");
     const stopBtn = document.getElementById("stopBtn");
@@ -319,6 +322,7 @@
     let freqData = null;
     let sampleRate = 48000;
 
+    let synced = false;
     let armed = false;
     let measuring = false;
     let startEpochMs = 0;
@@ -337,17 +341,21 @@
       return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
     }
 
+    function nextTargetDate() {
+      const now = new Date();
+      const targetSec = Number(startSecondEl.value);
+      const next = new Date(now);
+      next.setMilliseconds(0);
+      next.setSeconds(targetSec);
+      if (next <= now) next.setMinutes(next.getMinutes() + 1);
+      return next;
+    }
+
     function updateClock() {
       const now = new Date();
       clockEl.textContent = formatClock1s(now);
 
-      const targetSec = Number(startSecondEl.value);
-      let next = new Date(now);
-      next.setMilliseconds(0);
-      next.setSeconds(targetSec);
-
-      if (next <= now) next.setMinutes(next.getMinutes() + 1);
-
+      const next = nextTargetDate();
       const remainSec = Math.ceil((next - now) / 1000);
       if (!measuring) {
         nextInfoEl.textContent =
@@ -381,7 +389,7 @@
 
       statusEl.textContent = "状態: マイク準備完了";
       micBtn.disabled = true;
-      armBtn.disabled = false;
+      if (synced) armBtn.disabled = false;
     }
 
     function median3(a, b, c) {
@@ -482,7 +490,6 @@
       let ymax = Math.max(...ys);
 
       if (xmax < 1) xmax = 1;
-
       if (Math.abs(ymax - ymin) < 1e-9) {
         ymax += 1;
         ymin -= 1;
@@ -531,6 +538,16 @@
         document.body.removeChild(ta);
         return ok;
       }
+    }
+
+    async function syncTimeWithArduino() {
+      const now = Date.now();
+      const url = `${ARDUINO_HOST}/sync?epoch_ms=${now}`;
+      const res = await fetch(url, {cache:"no-store"});
+      if (!res.ok) throw new Error("sync failed");
+      synced = true;
+      statusEl.textContent = "状態: 時刻同期完了";
+      if (analyser) armBtn.disabled = false;
     }
 
     function startMeasurement() {
@@ -611,24 +628,43 @@
 
     loop();
 
+    syncBtn.addEventListener("click", async () => {
+      try {
+        await syncTimeWithArduino();
+      } catch (e) {
+        statusEl.textContent = "状態: 時刻同期失敗";
+      }
+    });
+
     micBtn.addEventListener("click", async () => {
       try {
         await startMic();
       } catch (e) {
         statusEl.textContent = "状態: マイク起動失敗";
-        alert("マイクの起動に失敗しました。HTTPSで開いて、Safariのマイク許可を確認してください。");
-        console.error(e);
+        alert("マイクの起動に失敗しました。Safariのマイク許可を確認してください。");
       }
     });
 
-    armBtn.addEventListener("click", () => {
-      if (!analyser) return;
-      armed = true;
-      measuring = false;
-      statusEl.textContent = `状態: 次の ${startSecondEl.value} 秒で開始待ち`;
+    armBtn.addEventListener("click", async () => {
+      try {
+        const sec = Number(startSecondEl.value);
+        const dur = Number(durationSecEl.value);
+        const res = await fetch(`${ARDUINO_HOST}/arm?sec=${sec}&dur=${dur}`, {cache:"no-store"});
+        if (!res.ok) throw new Error("arm failed");
+        armed = true;
+        measuring = false;
+        statusEl.textContent = `状態: 次の ${sec} 秒で開始待ち`;
+      } catch (e) {
+        statusEl.textContent = "状態: 予約失敗";
+      }
     });
 
-    stopBtn.addEventListener("click", stopMeasurement);
+    stopBtn.addEventListener("click", async () => {
+      stopMeasurement();
+      try {
+        await fetch(`${ARDUINO_HOST}/stop`, {cache:"no-store"});
+      } catch (e) {}
+    });
 
     copyBtn.addEventListener("click", async () => {
       if (logs.length === 0) return;
