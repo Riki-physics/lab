@@ -1,0 +1,514 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Doppler F-t Logger</title>
+  <style>
+    :root{
+      --bg:#f6f8fb;
+      --card:#ffffff;
+      --text:#102033;
+      --sub:#5b6b7d;
+      --line:#d8e1ea;
+      --accent:#2563eb;   /* iPhone用: 青 */
+      --accent-soft:#dbeafe;
+      --grid:#e8eef5;
+    }
+    *{box-sizing:border-box;}
+    body{
+      margin:0;
+      font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+      background:var(--bg);
+      color:var(--text);
+    }
+    .topbar{
+      position:sticky;
+      top:0;
+      z-index:10;
+      background:rgba(255,255,255,.88);
+      backdrop-filter:blur(10px);
+      border-bottom:1px solid var(--line);
+      padding:12px 14px;
+    }
+    .clock{
+      font-size:1.6rem;
+      font-weight:800;
+      letter-spacing:.03em;
+    }
+    .sub{
+      color:var(--sub);
+      font-size:.92rem;
+      margin-top:4px;
+    }
+    .wrap{
+      max-width:900px;
+      margin:0 auto;
+      padding:14px;
+    }
+    .card{
+      background:var(--card);
+      border:1px solid var(--line);
+      border-radius:16px;
+      padding:14px;
+      margin-bottom:14px;
+      box-shadow:0 4px 14px rgba(16,32,51,.05);
+    }
+    .row{
+      display:flex;
+      flex-wrap:wrap;
+      gap:10px;
+      align-items:center;
+      margin-bottom:10px;
+    }
+    label{
+      font-size:.95rem;
+      font-weight:700;
+    }
+    select,input,button{
+      font-size:1rem;
+      border-radius:12px;
+      border:1px solid var(--line);
+      padding:10px 12px;
+      background:#fff;
+    }
+    button{
+      font-weight:800;
+      cursor:pointer;
+    }
+    .main{
+      background:var(--accent);
+      color:#fff;
+      border-color:var(--accent);
+    }
+    .pillbox{
+      display:flex;
+      gap:8px;
+      flex-wrap:wrap;
+    }
+    .pill{
+      border-radius:999px;
+      padding:8px 12px;
+      border:1px solid var(--line);
+      background:#fff;
+    }
+    .pill.active{
+      background:var(--accent);
+      color:#fff;
+      border-color:var(--accent);
+    }
+    .statgrid{
+      display:grid;
+      grid-template-columns:1fr 1fr;
+      gap:12px;
+    }
+    .stat{
+      background:#fbfdff;
+      border:1px solid var(--line);
+      border-radius:14px;
+      padding:12px;
+    }
+    .stat .label{
+      color:var(--sub);
+      font-size:.88rem;
+      margin-bottom:6px;
+    }
+    .stat .value{
+      font-size:1.9rem;
+      font-weight:800;
+    }
+    canvas{
+      width:100%;
+      height:260px;
+      display:block;
+      background:#fff;
+      border:1px solid var(--line);
+      border-radius:14px;
+    }
+    .mono{
+      white-space:pre-wrap;
+      font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
+      font-size:.9rem;
+      background:#fbfdff;
+      border:1px solid var(--line);
+      border-radius:12px;
+      padding:10px;
+      max-height:220px;
+      overflow:auto;
+    }
+  </style>
+</head>
+<body>
+  <div class="topbar">
+    <div class="clock" id="clock">--:--:--.---</div>
+    <div class="sub" id="nextInfo">次の開始待ち</div>
+  </div>
+
+  <div class="wrap">
+    <div class="card">
+      <div class="row">
+        <label>開始秒</label>
+        <select id="startSecond"></select>
+
+        <label>測定時間 [s]</label>
+        <input id="durationSec" type="number" min="1" max="60" step="1" value="5" style="width:90px;">
+      </div>
+
+      <div class="row">
+        <div style="font-weight:700;">よく使う時間</div>
+        <div class="pillbox" id="pillbox">
+          <button class="pill" data-sec="3">3秒</button>
+          <button class="pill active" data-sec="5">5秒</button>
+          <button class="pill" data-sec="10">10秒</button>
+          <button class="pill" data-sec="15">15秒</button>
+        </div>
+      </div>
+
+      <div class="row">
+        <label>基準周波数 f₀ [Hz]</label>
+        <input id="f0Input" type="number" min="100" max="5000" step="1" value="1200" style="width:110px;">
+      </div>
+
+      <div class="row">
+        <button id="micBtn" class="main">マイク開始</button>
+        <button id="armBtn" disabled>時刻予約</button>
+        <button id="stopBtn" disabled>停止</button>
+        <button id="csvBtn" disabled>CSV保存</button>
+      </div>
+
+      <div class="sub" id="status">状態: 未開始</div>
+      <div class="sub">開始秒は「毎分その秒」です。例: 20秒を選ぶと、次の xx:xx:20 から自動開始します。</div>
+    </div>
+
+    <div class="card">
+      <div class="statgrid">
+        <div class="stat">
+          <div class="label">推定周波数 f</div>
+          <div class="value" id="freqView">-- Hz</div>
+        </div>
+        <div class="stat">
+          <div class="label">周波数差 Δf = f - f₀</div>
+          <div class="value" id="dfView">-- Hz</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div style="font-weight:800; margin-bottom:10px;">F-t グラフ</div>
+      <canvas id="chart" width="900" height="260"></canvas>
+    </div>
+
+    <div class="card">
+      <div style="font-weight:800; margin-bottom:10px;">ログ先頭</div>
+      <div class="mono" id="logView">まだデータはありません。</div>
+    </div>
+  </div>
+
+  <script>
+    const clockEl = document.getElementById("clock");
+    const nextInfoEl = document.getElementById("nextInfo");
+    const startSecondEl = document.getElementById("startSecond");
+    const durationSecEl = document.getElementById("durationSec");
+    const f0Input = document.getElementById("f0Input");
+    const micBtn = document.getElementById("micBtn");
+    const armBtn = document.getElementById("armBtn");
+    const stopBtn = document.getElementById("stopBtn");
+    const csvBtn = document.getElementById("csvBtn");
+    const statusEl = document.getElementById("status");
+    const freqView = document.getElementById("freqView");
+    const dfView = document.getElementById("dfView");
+    const logView = document.getElementById("logView");
+
+    const canvas = document.getElementById("chart");
+    const g = canvas.getContext("2d");
+
+    for (let i = 0; i < 60; i++) {
+      const op = document.createElement("option");
+      op.value = i;
+      op.textContent = `${i} 秒`;
+      startSecondEl.appendChild(op);
+    }
+    startSecondEl.value = "20";
+
+    document.querySelectorAll(".pill").forEach(btn => {
+      btn.addEventListener("click", () => {
+        document.querySelectorAll(".pill").forEach(b => b.classList.remove("active"));
+        btn.classList.add("active");
+        durationSecEl.value = btn.dataset.sec;
+      });
+    });
+
+    let audioContext = null;
+    let analyser = null;
+    let source = null;
+    let stream = null;
+    let freqData = null;
+    let sampleRate = 48000;
+
+    let armed = false;
+    let measuring = false;
+    let startEpochMs = 0;
+    let measureDurationMs = 5000;
+    let logs = [];
+    let curve = [];
+
+    function pad(n, len = 2) {
+      return String(n).padStart(len, "0");
+    }
+    function formatClock(d) {
+      return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}.${pad(d.getMilliseconds(), 3)}`;
+    }
+
+    function updateClock() {
+      const now = new Date();
+      clockEl.textContent = formatClock(now);
+
+      const targetSec = Number(startSecondEl.value);
+      let next = new Date(now);
+      next.setMilliseconds(0);
+      next.setSeconds(targetSec);
+      if (next <= now) next.setMinutes(next.getMinutes() + 1);
+
+      const dt = ((next - now) / 1000).toFixed(2);
+      if (!measuring) {
+        nextInfoEl.textContent = `次の開始予定: ${pad(next.getHours())}:${pad(next.getMinutes())}:${pad(next.getSeconds())} まで ${dt} s`;
+      }
+    }
+    setInterval(updateClock, 50);
+    updateClock();
+
+    async function startMic() {
+      stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: false,
+          noiseSuppression: false,
+          autoGainControl: false
+        }
+      });
+
+      audioContext = new (window.AudioContext || window.webkitAudioContext)();
+      await audioContext.resume();
+
+      source = audioContext.createMediaStreamSource(stream);
+      analyser = audioContext.createAnalyser();
+      analyser.fftSize = 8192;
+      analyser.smoothingTimeConstant = 0.08;
+
+      source.connect(analyser);
+      freqData = new Float32Array(analyser.frequencyBinCount);
+      sampleRate = audioContext.sampleRate;
+
+      statusEl.textContent = "状態: マイク準備完了";
+      micBtn.disabled = true;
+      armBtn.disabled = false;
+    }
+
+    function getPeakFrequency() {
+      analyser.getFloatFrequencyData(freqData);
+
+      const hzPerBin = sampleRate / analyser.fftSize;
+      const minF = 300;
+      const maxF = 4000;
+      const startBin = Math.max(1, Math.floor(minF / hzPerBin));
+      const endBin = Math.min(freqData.length - 2, Math.floor(maxF / hzPerBin));
+
+      let maxDb = -Infinity;
+      let maxIndex = startBin;
+
+      for (let i = startBin; i <= endBin; i++) {
+        if (freqData[i] > maxDb) {
+          maxDb = freqData[i];
+          maxIndex = i;
+        }
+      }
+
+      const y1 = freqData[maxIndex - 1];
+      const y2 = freqData[maxIndex];
+      const y3 = freqData[maxIndex + 1];
+      const denom = (y1 - 2 * y2 + y3);
+      let delta = 0;
+      if (Math.abs(denom) > 1e-12) delta = 0.5 * (y1 - y3) / denom;
+
+      const peakBin = maxIndex + delta;
+      const peakFreq = peakBin * hzPerBin;
+      return { peakFreq, maxDb };
+    }
+
+    function drawChart(data, color="#2563eb", yLabel="Hz") {
+      g.clearRect(0, 0, canvas.width, canvas.height);
+
+      const W = canvas.width, H = canvas.height;
+      const left = 54, right = 18, top = 18, bottom = 38;
+      const plotW = W - left - right;
+      const plotH = H - top - bottom;
+
+      g.fillStyle = "#ffffff";
+      g.fillRect(0, 0, W, H);
+
+      if (data.length < 2) {
+        g.strokeStyle = "#d8e1ea";
+        g.strokeRect(left, top, plotW, plotH);
+        return;
+      }
+
+      const xs = data.map(p => p.t);
+      const ys = data.map(p => p.y);
+
+      let xmin = 0;
+      let xmax = Math.max(...xs);
+      let ymin = Math.min(...ys);
+      let ymax = Math.max(...ys);
+
+      if (xmax < 1) xmax = 1;
+      if (Math.abs(ymax - ymin) < 1e-6) {
+        ymax += 1;
+        ymin -= 1;
+      } else {
+        const pad = 0.08 * (ymax - ymin);
+        ymax += pad;
+        ymin -= pad;
+      }
+
+      g.strokeStyle = "#e8eef5";
+      g.lineWidth = 1;
+      for (let i = 0; i <= 5; i++) {
+        const y = top + plotH * i / 5;
+        g.beginPath();
+        g.moveTo(left, y);
+        g.lineTo(left + plotW, y);
+        g.stroke();
+      }
+      for (let i = 0; i <= 5; i++) {
+        const x = left + plotW * i / 5;
+        g.beginPath();
+        g.moveTo(x, top);
+        g.lineTo(x, top + plotH);
+        g.stroke();
+      }
+
+      g.strokeStyle = "#c9d5e2";
+      g.strokeRect(left, top, plotW, plotH);
+
+      g.strokeStyle = color;
+      g.lineWidth = 3;
+      g.beginPath();
+      data.forEach((p, i) => {
+        const x = left + plotW * (p.t - xmin) / (xmax - xmin);
+        const y = top + plotH * (1 - (p.y - ymin) / (ymax - ymin));
+        if (i === 0) g.moveTo(x, y);
+        else g.lineTo(x, y);
+      });
+      g.stroke();
+
+      g.fillStyle = "#5b6b7d";
+      g.font = "14px sans-serif";
+      g.fillText(`${ymax.toFixed(1)} ${yLabel}`, 6, top + 4);
+      g.fillText(`${ymin.toFixed(1)} ${yLabel}`, 6, top + plotH);
+      g.fillText("t [s]", left + plotW - 28, H - 8);
+      g.fillText("F-t", left + 8, top + 18);
+    }
+
+    function startMeasurement() {
+      armed = false;
+      measuring = true;
+      logs = [];
+      curve = [];
+      measureDurationMs = Number(durationSecEl.value) * 1000;
+      startEpochMs = Date.now();
+      statusEl.textContent = "状態: 測定中";
+      stopBtn.disabled = false;
+      csvBtn.disabled = true;
+    }
+
+    function stopMeasurement() {
+      measuring = false;
+      armed = false;
+      stopBtn.disabled = true;
+      csvBtn.disabled = logs.length === 0;
+      statusEl.textContent = `状態: 停止（${logs.length} 点）`;
+
+      if (logs.length) {
+        logView.textContent = logs.slice(0, 25).map(r =>
+          `${r.clock}, ${r.elapsed_s.toFixed(3)} s, ${r.freq_hz.toFixed(2)} Hz, ${r.df_hz.toFixed(2)} Hz`
+        ).join("\n");
+      }
+    }
+
+    function loop() {
+      requestAnimationFrame(loop);
+
+      const now = new Date();
+      const sec = now.getSeconds();
+      const ms = now.getMilliseconds();
+      const targetSec = Number(startSecondEl.value);
+
+      if (armed && !measuring) {
+        if (sec === targetSec && ms < 80) startMeasurement();
+      }
+
+      if (measuring && analyser) {
+        const { peakFreq, maxDb } = getPeakFrequency();
+        const nowMs = Date.now();
+        const t = (nowMs - startEpochMs) / 1000;
+        const f0 = Number(f0Input.value);
+        const df = peakFreq - f0;
+
+        freqView.textContent = `${peakFreq.toFixed(2)} Hz`;
+        dfView.textContent = `${df.toFixed(2)} Hz`;
+
+        logs.push({
+          clock: formatClock(new Date()),
+          elapsed_s: t,
+          freq_hz: peakFreq,
+          df_hz: df,
+          level_db: maxDb
+        });
+
+        curve.push({ t, y: peakFreq });
+        if (curve.length > 600) curve.shift();
+        drawChart(curve, "#2563eb", "Hz");
+
+        if (nowMs - startEpochMs >= measureDurationMs) {
+          stopMeasurement();
+        }
+      }
+    }
+    loop();
+
+    micBtn.addEventListener("click", async () => {
+      try {
+        await startMic();
+      } catch (e) {
+        statusEl.textContent = "状態: マイク起動失敗";
+        alert("マイクの起動に失敗しました。HTTPS で開いて、Safari のマイク許可を確認してください。");
+        console.error(e);
+      }
+    });
+
+    armBtn.addEventListener("click", () => {
+      if (!analyser) return;
+      armed = true;
+      measuring = false;
+      statusEl.textContent = `状態: 次の ${startSecondEl.value} 秒で開始待ち`;
+    });
+
+    stopBtn.addEventListener("click", stopMeasurement);
+
+    csvBtn.addEventListener("click", () => {
+      if (!logs.length) return;
+      let csv = "clock,elapsed_s,freq_hz,df_hz,level_db\n";
+      csv += logs.map(r =>
+        `${r.clock},${r.elapsed_s.toFixed(4)},${r.freq_hz.toFixed(4)},${r.df_hz.toFixed(4)},${r.level_db.toFixed(2)}`
+      ).join("\n");
+
+      const blob = new Blob([csv], { type: "text/csv" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "doppler_ft_log.csv";
+      a.click();
+      URL.revokeObjectURL(url);
+    });
+  </script>
+</body>
+</html>
