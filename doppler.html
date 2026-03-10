@@ -1,514 +1,501 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="ja">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <title>Doppler F-t Logger</title>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <title>Mic + IMU Doppler Debug</title>
   <style>
-    :root{
-      --bg:#f6f8fb;
-      --card:#ffffff;
-      --text:#102033;
-      --sub:#5b6b7d;
-      --line:#d8e1ea;
-      --accent:#2563eb;   /* iPhone用: 青 */
-      --accent-soft:#dbeafe;
-      --grid:#e8eef5;
-    }
-    *{box-sizing:border-box;}
-    body{
-      margin:0;
-      font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
-      background:var(--bg);
-      color:var(--text);
-    }
-    .topbar{
-      position:sticky;
-      top:0;
-      z-index:10;
-      background:rgba(255,255,255,.88);
-      backdrop-filter:blur(10px);
-      border-bottom:1px solid var(--line);
-      padding:12px 14px;
-    }
-    .clock{
-      font-size:1.6rem;
-      font-weight:800;
-      letter-spacing:.03em;
-    }
-    .sub{
-      color:var(--sub);
-      font-size:.92rem;
-      margin-top:4px;
-    }
-    .wrap{
-      max-width:900px;
-      margin:0 auto;
-      padding:14px;
-    }
-    .card{
-      background:var(--card);
-      border:1px solid var(--line);
-      border-radius:16px;
-      padding:14px;
-      margin-bottom:14px;
-      box-shadow:0 4px 14px rgba(16,32,51,.05);
-    }
-    .row{
-      display:flex;
-      flex-wrap:wrap;
-      gap:10px;
-      align-items:center;
-      margin-bottom:10px;
-    }
-    label{
-      font-size:.95rem;
-      font-weight:700;
-    }
-    select,input,button{
-      font-size:1rem;
-      border-radius:12px;
-      border:1px solid var(--line);
-      padding:10px 12px;
-      background:#fff;
-    }
-    button{
-      font-weight:800;
-      cursor:pointer;
-    }
-    .main{
-      background:var(--accent);
-      color:#fff;
-      border-color:var(--accent);
-    }
-    .pillbox{
-      display:flex;
-      gap:8px;
-      flex-wrap:wrap;
-    }
-    .pill{
-      border-radius:999px;
-      padding:8px 12px;
-      border:1px solid var(--line);
-      background:#fff;
-    }
-    .pill.active{
-      background:var(--accent);
-      color:#fff;
-      border-color:var(--accent);
-    }
-    .statgrid{
-      display:grid;
-      grid-template-columns:1fr 1fr;
-      gap:12px;
-    }
-    .stat{
-      background:#fbfdff;
-      border:1px solid var(--line);
-      border-radius:14px;
-      padding:12px;
-    }
-    .stat .label{
-      color:var(--sub);
-      font-size:.88rem;
-      margin-bottom:6px;
-    }
-    .stat .value{
-      font-size:1.9rem;
-      font-weight:800;
-    }
-    canvas{
-      width:100%;
-      height:260px;
-      display:block;
-      background:#fff;
-      border:1px solid var(--line);
-      border-radius:14px;
-    }
-    .mono{
-      white-space:pre-wrap;
-      font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
-      font-size:.9rem;
-      background:#fbfdff;
-      border:1px solid var(--line);
-      border-radius:12px;
-      padding:10px;
-      max-height:220px;
-      overflow:auto;
-    }
+    body { font-family: -apple-system, system-ui, sans-serif; margin: 14px; line-height: 1.35; }
+    h1 { font-size: 18px; margin: 0 0 10px; }
+    .row { display: flex; gap: 10px; flex-wrap: wrap; }
+    .card { border: 1px solid #ddd; border-radius: 12px; padding: 12px; flex: 1 1 330px; }
+    label { display:block; font-size: 12px; color:#444; margin-top: 8px; }
+    input, select, button { font-size: 16px; padding: 8px; }
+    input, select { width: 100%; box-sizing: border-box; }
+    button { border-radius: 10px; border: 1px solid #ccc; background: #f7f7f7; }
+    button.primary { background:#e9f2ff; border-color:#b8d3ff; }
+    .grid { display:grid; grid-template-columns: 1fr 1fr; gap: 8px 10px; margin-top: 8px; }
+    .kv { background:#fafafa; border:1px solid #eee; border-radius:12px; padding:10px; }
+    .k { font-size: 12px; color:#555; }
+    .v { font-size: 18px; font-variant-numeric: tabular-nums; margin-top: 2px; }
+    .small { font-size: 12px; color:#666; }
+    .warn { color:#b00020; font-size: 12px; white-space: pre-wrap; }
+    .ok { color:#0a7a0a; font-size: 12px; white-space: pre-wrap; }
+    canvas { width: 100%; height: 180px; border:1px solid #eee; border-radius:12px; background:#fff; }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
   </style>
 </head>
 <body>
-  <div class="topbar">
-    <div class="clock" id="clock">--:--:--.---</div>
-    <div class="sub" id="nextInfo">次の開始待ち</div>
+<h1>Mic + IMU（開始しない原因を画面に出す版）</h1>
+
+<div class="card" style="margin-bottom:12px;">
+  <button id="btnSession" class="primary">セッション開始（t=0 & v_imu=0）</button>
+  <button id="btnStopAll">全部停止</button>
+  <div class="small">
+    ✅ 必ず <span class="mono">https://</span> で、できればSafariで開く。アプリ内ブラウザは避ける。<br>
+    「開始しない」場合は、下の <b>エラー表示</b> を見て原因を潰す。
   </div>
+  <div id="env" class="ok" style="margin-top:8px;"></div>
+  <div id="err" class="warn" style="margin-top:8px;"></div>
+</div>
 
-  <div class="wrap">
-    <div class="card">
-      <div class="row">
-        <label>開始秒</label>
-        <select id="startSecond"></select>
+<div class="row">
+  <div class="card">
+    <h2 style="font-size:16px;margin:0 0 6px;">① マイク（f2推定）</h2>
+    <button id="btnMic" class="primary">マイク開始</button>
+    <button id="btnMicStop">マイク停止</button>
+    <div id="micStatus" class="small">未開始</div>
 
-        <label>測定時間 [s]</label>
-        <input id="durationSec" type="number" min="1" max="60" step="1" value="5" style="width:90px;">
-      </div>
+    <label>音源周波数 f1 [Hz]</label>
+    <input id="f1" type="number" value="16000" min="1" step="1"/>
 
-      <div class="row">
-        <div style="font-weight:700;">よく使う時間</div>
-        <div class="pillbox" id="pillbox">
-          <button class="pill" data-sec="3">3秒</button>
-          <button class="pill active" data-sec="5">5秒</button>
-          <button class="pill" data-sec="10">10秒</button>
-          <button class="pill" data-sec="15">15秒</button>
-        </div>
-      </div>
+    <label>探索範囲 ±Δ [Hz]</label>
+    <input id="spanHz" type="number" value="120" min="30" step="10"/>
 
-      <div class="row">
-        <label>基準周波数 f₀ [Hz]</label>
-        <input id="f0Input" type="number" min="100" max="5000" step="1" value="1200" style="width:110px;">
-      </div>
+    <label>探索ステップ [Hz]</label>
+    <input id="stepHz" type="number" value="2" min="1" step="1"/>
 
-      <div class="row">
-        <button id="micBtn" class="main">マイク開始</button>
-        <button id="armBtn" disabled>時刻予約</button>
-        <button id="stopBtn" disabled>停止</button>
-        <button id="csvBtn" disabled>CSV保存</button>
-      </div>
+    <label>f2 平滑化（0〜0.95）</label>
+    <input id="smoothF2" type="number" value="0.70" min="0" max="0.95" step="0.05"/>
 
-      <div class="sub" id="status">状態: 未開始</div>
-      <div class="sub">開始秒は「毎分その秒」です。例: 20秒を選ぶと、次の xx:xx:20 から自動開始します。</div>
-    </div>
-
-    <div class="card">
-      <div class="statgrid">
-        <div class="stat">
-          <div class="label">推定周波数 f</div>
-          <div class="value" id="freqView">-- Hz</div>
-        </div>
-        <div class="stat">
-          <div class="label">周波数差 Δf = f - f₀</div>
-          <div class="value" id="dfView">-- Hz</div>
-        </div>
-      </div>
-    </div>
-
-    <div class="card">
-      <div style="font-weight:800; margin-bottom:10px;">F-t グラフ</div>
-      <canvas id="chart" width="900" height="260"></canvas>
-    </div>
-
-    <div class="card">
-      <div style="font-weight:800; margin-bottom:10px;">ログ先頭</div>
-      <div class="mono" id="logView">まだデータはありません。</div>
+    <div class="grid">
+      <div class="kv"><div class="k">f2 [Hz]</div><div class="v" id="f2Disp">—</div></div>
+      <div class="kv"><div class="k">sampleRate [Hz]</div><div class="v" id="srDisp">—</div></div>
     </div>
   </div>
 
-  <script>
-    const clockEl = document.getElementById("clock");
-    const nextInfoEl = document.getElementById("nextInfo");
-    const startSecondEl = document.getElementById("startSecond");
-    const durationSecEl = document.getElementById("durationSec");
-    const f0Input = document.getElementById("f0Input");
-    const micBtn = document.getElementById("micBtn");
-    const armBtn = document.getElementById("armBtn");
-    const stopBtn = document.getElementById("stopBtn");
-    const csvBtn = document.getElementById("csvBtn");
-    const statusEl = document.getElementById("status");
-    const freqView = document.getElementById("freqView");
-    const dfView = document.getElementById("dfView");
-    const logView = document.getElementById("logView");
+  <div class="card">
+    <h2 style="font-size:16px;margin:0 0 6px;">② IMU（a→v）</h2>
+    <button id="btnIMU" class="primary">IMU開始</button>
+    <button id="btnIMUStop">IMU停止</button>
+    <button id="btnZeroV">v_imuを0に</button>
+    <div id="imuStatus" class="small">未開始</div>
+    <div id="imuWarn" class="warn"></div>
 
-    const canvas = document.getElementById("chart");
-    const g = canvas.getContext("2d");
+    <label>軸</label>
+    <select id="axis">
+      <option value="x">x</option>
+      <option value="y">y</option>
+      <option value="z">z</option>
+    </select>
 
-    for (let i = 0; i < 60; i++) {
-      const op = document.createElement("option");
-      op.value = i;
-      op.textContent = `${i} 秒`;
-      startSecondEl.appendChild(op);
+    <label>τ_bias [s]</label>
+    <input id="tauBias" type="number" value="2.5" min="0.2" max="10" step="0.1"/>
+
+    <label>a 平滑化（0〜0.95）</label>
+    <input id="smoothA" type="number" value="0.60" min="0" max="0.95" step="0.05"/>
+
+    <label>v 平滑化 β（0〜0.98）</label>
+    <input id="betaV" type="number" value="0.20" min="0" max="0.98" step="0.01"/>
+
+    <div class="grid">
+      <div class="kv"><div class="k">a_raw [m/s²]</div><div class="v" id="aRawDisp">—</div></div>
+      <div class="kv"><div class="k">a [m/s²]</div><div class="v" id="aDisp">—</div></div>
+      <div class="kv"><div class="k">v_imu [m/s]</div><div class="v" id="vImuDisp">—</div></div>
+      <div class="kv"><div class="k">t [s]</div><div class="v" id="tDisp">—</div></div>
+    </div>
+  </div>
+</div>
+
+<div class="card" style="margin-top:12px;">
+  <h2 style="font-size:16px;margin:0 0 6px;">③ グラフ</h2>
+  <label>表示ウィンドウ [s]</label>
+  <input id="winSec" type="number" value="10" min="3" max="60" step="1"/>
+
+  <label>v表示レンジ（±）[m/s]</label>
+  <input id="vRange" type="number" value="0.20" min="0.05" max="2" step="0.01"/>
+
+  <div class="small" style="margin:8px 0 10px;">
+    上：f2–t（青） 下：v_imu–t（橙） / a–t（緑）
+  </div>
+  <canvas id="cvF2" width="900" height="220"></canvas>
+  <div style="height:10px"></div>
+  <canvas id="cvVA" width="900" height="260"></canvas>
+</div>
+
+<script>
+(() => {
+  const $ = (id) => document.getElementById(id);
+  const errBox = $("err");
+  const envBox = $("env");
+  function logErr(msg) { errBox.textContent += msg + "\n"; }
+  function clearErr() { errBox.textContent = ""; }
+  window.addEventListener("error", (e) => logErr("JS Error: " + (e.message || e.type)));
+  window.addEventListener("unhandledrejection", (e) => logErr("Promise Error: " + (e.reason?.message || e.reason)));
+
+  const el = {
+    btnSession: $("btnSession"),
+    btnStopAll: $("btnStopAll"),
+
+    btnMic: $("btnMic"),
+    btnMicStop: $("btnMicStop"),
+    micStatus: $("micStatus"),
+    f1: $("f1"),
+    spanHz: $("spanHz"),
+    stepHz: $("stepHz"),
+    smoothF2: $("smoothF2"),
+    f2Disp: $("f2Disp"),
+    srDisp: $("srDisp"),
+
+    btnIMU: $("btnIMU"),
+    btnIMUStop: $("btnIMUStop"),
+    btnZeroV: $("btnZeroV"),
+    imuStatus: $("imuStatus"),
+    imuWarn: $("imuWarn"),
+    axis: $("axis"),
+    tauBias: $("tauBias"),
+    smoothA: $("smoothA"),
+    betaV: $("betaV"),
+    aRawDisp: $("aRawDisp"),
+    aDisp: $("aDisp"),
+    vImuDisp: $("vImuDisp"),
+    tDisp: $("tDisp"),
+
+    winSec: $("winSec"),
+    vRange: $("vRange"),
+    cvF2: $("cvF2"),
+    cvVA: $("cvVA"),
+  };
+
+  // ---- environment info
+  envBox.textContent =
+    `origin=${location.origin}\n` +
+    `protocol=${location.protocol}\n` +
+    `isSecureContext=${String(window.isSecureContext)}\n` +
+    `userAgent=${navigator.userAgent}`;
+
+  // ---- session time
+  let sessionT0 = null;
+  function ensureSession() {
+    if (sessionT0 == null) startSession();
+  }
+  function tNowSec() {
+    if (sessionT0 == null) return NaN;
+    return (performance.now() - sessionT0) / 1000;
+  }
+  function startSession() {
+    sessionT0 = performance.now();
+    // reset states
+    f2Smooth = NaN;
+    aBias = 0;
+    aSmooth = NaN;
+    vInt = 0;
+    vImuNow = 0;
+    logN = 0;
+    el.micStatus.textContent = "セッション開始済み（t=0）";
+    el.imuStatus.textContent = "セッション開始済み（t=0）";
+    clearErr();
+  }
+
+  // ---- logs (simple)
+  const MAX = 8000;
+  const tLog = new Array(MAX).fill(NaN);
+  const f2Log = new Array(MAX).fill(NaN);
+  const aLog  = new Array(MAX).fill(NaN);
+  const vILog = new Array(MAX).fill(NaN);
+  let logN = 0;
+  function pushLog(t, f2, a, vI) {
+    if (!isFinite(t)) return;
+    if (logN >= MAX) return;
+    tLog[logN] = t;
+    f2Log[logN] = f2;
+    aLog[logN] = a;
+    vILog[logN] = vI;
+    logN++;
+  }
+
+  // ---- mic (Goertzel)
+  let audioCtx = null, micStream = null, analyser = null, micTimer = null;
+  let f2Smooth = NaN;
+  let sr = NaN;
+
+  function goertzelPower(x, freq, sampleRate) {
+    const w = 2 * Math.PI * freq / sampleRate;
+    const cosw = Math.cos(w);
+    const coeff = 2 * cosw;
+    let s0 = 0, s1 = 0, s2 = 0;
+    for (let n = 0; n < x.length; n++) {
+      s0 = x[n] + coeff * s1 - s2;
+      s2 = s1;
+      s1 = s0;
     }
-    startSecondEl.value = "20";
+    return (s1*s1 + s2*s2 - coeff*s1*s2);
+  }
 
-    document.querySelectorAll(".pill").forEach(btn => {
-      btn.addEventListener("click", () => {
-        document.querySelectorAll(".pill").forEach(b => b.classList.remove("active"));
-        btn.classList.add("active");
-        durationSecEl.value = btn.dataset.sec;
+  function estimateF2(buf, f1, span, step, sampleRate) {
+    const fMin = Math.max(10, f1 - span);
+    const fMax = f1 + span;
+    // limit bins
+    const maxBins = 140;
+    const bins = Math.floor((fMax - fMin) / step) + 1;
+    let stepUse = step;
+    if (bins > maxBins) stepUse = Math.ceil((fMax - fMin) / maxBins);
+
+    let bestF = NaN, bestP = -Infinity;
+    for (let f = fMin; f <= fMax; f += stepUse) {
+      const p = goertzelPower(buf, f, sampleRate);
+      if (p > bestP) { bestP = p; bestF = f; }
+    }
+    return bestF;
+  }
+
+  async function startMic() {
+    try {
+      ensureSession();
+      clearErr();
+
+      if (!navigator.mediaDevices?.getUserMedia) {
+        throw new Error("navigator.mediaDevices.getUserMedia が使えません（Safari/HTTPS確認）");
+      }
+
+      el.micStatus.textContent = "許可待ち…";
+      micStream = await navigator.mediaDevices.getUserMedia({
+        audio: { echoCancellation:false, noiseSuppression:false, autoGainControl:false }
       });
-    });
 
-    let audioContext = null;
-    let analyser = null;
-    let source = null;
-    let stream = null;
-    let freqData = null;
-    let sampleRate = 48000;
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      await audioCtx.resume(); // iOS対策
+      sr = audioCtx.sampleRate;
+      el.srDisp.textContent = String(sr);
 
-    let armed = false;
-    let measuring = false;
-    let startEpochMs = 0;
-    let measureDurationMs = 5000;
-    let logs = [];
-    let curve = [];
+      const src = audioCtx.createMediaStreamSource(micStream);
+      analyser = audioCtx.createAnalyser();
+      analyser.fftSize = 2048;
+      analyser.smoothingTimeConstant = 0;
+      src.connect(analyser);
 
-    function pad(n, len = 2) {
-      return String(n).padStart(len, "0");
-    }
-    function formatClock(d) {
-      return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}.${pad(d.getMilliseconds(), 3)}`;
-    }
+      const buf = new Float32Array(analyser.fftSize);
+      el.micStatus.textContent = "マイク稼働中";
 
-    function updateClock() {
-      const now = new Date();
-      clockEl.textContent = formatClock(now);
+      micTimer = setInterval(() => {
+        if (!analyser || !audioCtx) return;
+        analyser.getFloatTimeDomainData(buf);
 
-      const targetSec = Number(startSecondEl.value);
-      let next = new Date(now);
-      next.setMilliseconds(0);
-      next.setSeconds(targetSec);
-      if (next <= now) next.setMinutes(next.getMinutes() + 1);
+        const f1 = Number(el.f1.value);
+        const span = Number(el.spanHz.value);
+        const step = Number(el.stepHz.value);
 
-      const dt = ((next - now) / 1000).toFixed(2);
-      if (!measuring) {
-        nextInfoEl.textContent = `次の開始予定: ${pad(next.getHours())}:${pad(next.getMinutes())}:${pad(next.getSeconds())} まで ${dt} s`;
-      }
-    }
-    setInterval(updateClock, 50);
-    updateClock();
-
-    async function startMic() {
-      stream = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          echoCancellation: false,
-          noiseSuppression: false,
-          autoGainControl: false
+        const f2 = estimateF2(buf, f1, span, step, sr);
+        const alpha = Number(el.smoothF2.value);
+        if (isFinite(f2)) {
+          if (!isFinite(f2Smooth)) f2Smooth = f2;
+          else f2Smooth = alpha * f2Smooth + (1 - alpha) * f2;
         }
-      });
+        el.f2Disp.textContent = isFinite(f2Smooth) ? f2Smooth.toFixed(1) : "—";
 
-      audioContext = new (window.AudioContext || window.webkitAudioContext)();
-      await audioContext.resume();
+        const t = tNowSec();
+        pushLog(t, f2Smooth, aSmooth, vImuNow);
+      }, 33);
 
-      source = audioContext.createMediaStreamSource(stream);
-      analyser = audioContext.createAnalyser();
-      analyser.fftSize = 8192;
-      analyser.smoothingTimeConstant = 0.08;
+    } catch (e) {
+      logErr("Mic start failed: " + (e?.message ?? e));
+      el.micStatus.textContent = "開始失敗";
+    }
+  }
 
-      source.connect(analyser);
-      freqData = new Float32Array(analyser.frequencyBinCount);
-      sampleRate = audioContext.sampleRate;
+  function stopMic() {
+    if (micTimer) { clearInterval(micTimer); micTimer = null; }
+    if (micStream) { micStream.getTracks().forEach(t => t.stop()); micStream = null; }
+    if (audioCtx) { audioCtx.close(); audioCtx = null; }
+    analyser = null;
+    el.micStatus.textContent = "停止";
+  }
 
-      statusEl.textContent = "状態: マイク準備完了";
-      micBtn.disabled = true;
-      armBtn.disabled = false;
+  // ---- IMU
+  let imuRunning = false;
+  let lastTimu = null;
+  let imuAccumDt = 0;
+
+  let aBias = 0;
+  let aSmooth = NaN;
+  let vInt = 0;
+  let vImuNow = 0;
+
+  async function requestIMUPermissionIfNeeded() {
+    if (typeof DeviceMotionEvent !== "undefined" && typeof DeviceMotionEvent.requestPermission === "function") {
+      const res = await DeviceMotionEvent.requestPermission();
+      if (res !== "granted") throw new Error("DeviceMotion permission not granted");
+    }
+  }
+  function axisValue(acc, axis) {
+    if (!acc) return NaN;
+    if (axis === "x") return acc.x;
+    if (axis === "y") return acc.y;
+    return acc.z;
+  }
+
+  function onMotion(e) {
+    ensureSession();
+    const now = performance.now();
+    if (lastTimu == null) lastTimu = now;
+    const dt = (now - lastTimu) / 1000;
+    lastTimu = now;
+
+    imuAccumDt += dt;
+    if (imuAccumDt < 0.02) return;
+    const dtUse = imuAccumDt;
+    imuAccumDt = 0;
+
+    let acc = e.acceleration;
+    let msg = "";
+    if (!acc || acc.x == null) {
+      acc = e.accelerationIncludingGravity;
+      msg = "※acceleration=null → 重力込みを使用（軸固定前提）";
+    }
+    el.imuWarn.textContent = msg;
+
+    const aRaw = axisValue(acc, el.axis.value);
+    el.aRawDisp.textContent = isFinite(aRaw) ? aRaw.toFixed(3) : "—";
+
+    if (!isFinite(aRaw) || !isFinite(dtUse) || dtUse <= 0 || dtUse > 0.2) return;
+
+    const tau = Math.max(0.05, Number(el.tauBias.value));
+    const k = Math.min(1, dtUse / tau);
+    aBias = aBias + k * (aRaw - aBias);
+
+    const aCorr = aRaw - aBias;
+
+    const alphaA = Number(el.smoothA.value);
+    if (!isFinite(aSmooth)) aSmooth = aCorr;
+    else aSmooth = alphaA * aSmooth + (1 - alphaA) * aCorr;
+
+    vInt += aSmooth * dtUse;
+    const beta = Math.min(0.98, Math.max(0, Number(el.betaV.value)));
+    vImuNow = beta * vImuNow + (1 - beta) * vInt;
+
+    el.aDisp.textContent = isFinite(aSmooth) ? aSmooth.toFixed(3) : "—";
+    el.vImuDisp.textContent = isFinite(vImuNow) ? vImuNow.toFixed(3) : "—";
+    el.tDisp.textContent = isFinite(tNowSec()) ? tNowSec().toFixed(2) : "—";
+
+    pushLog(tNowSec(), f2Smooth, aSmooth, vImuNow);
+  }
+
+  async function startIMU() {
+    try {
+      ensureSession();
+      clearErr();
+      el.imuStatus.textContent = "許可待ち…";
+      await requestIMUPermissionIfNeeded();
+      window.addEventListener("devicemotion", onMotion, { passive: true });
+      imuRunning = true;
+      lastTimu = null;
+      imuAccumDt = 0;
+      el.imuStatus.textContent = "IMU稼働中";
+    } catch (e) {
+      logErr("IMU start failed: " + (e?.message ?? e));
+      el.imuStatus.textContent = "開始失敗";
+    }
+  }
+
+  function stopIMU() {
+    window.removeEventListener("devicemotion", onMotion);
+    imuRunning = false;
+    el.imuStatus.textContent = "停止";
+  }
+
+  function zeroV() {
+    vInt = 0;
+    vImuNow = 0;
+    el.vImuDisp.textContent = "0.000";
+  }
+
+  // ---- drawing
+  const ctxF2 = el.cvF2.getContext("2d");
+  const ctxVA = el.cvVA.getContext("2d");
+
+  function drawAxes(ctx, w, h, title, yLabel) {
+    ctx.clearRect(0,0,w,h);
+    ctx.fillStyle = "#111";
+    ctx.font = "12px -apple-system, system-ui, sans-serif";
+    ctx.fillText(title, 10, 16);
+    ctx.strokeStyle = "#ddd";
+    ctx.lineWidth = 1;
+    ctx.strokeRect(8, 24, w-16, h-36);
+    ctx.fillStyle = "#666";
+    ctx.fillText(yLabel, 10, h-8);
+  }
+  function drawSeries(ctx, w, h, tArr, yArr, tMin, tMax, yMin, yMax, stroke) {
+    const left = 8, top = 24, right = w-8, bottom = h-12;
+    const width = right-left, height = bottom-top;
+    const xOf = (t) => left + (t - tMin) / Math.max(1e-6, (tMax - tMin)) * width;
+    const yOf = (y) => bottom - (y - yMin) / Math.max(1e-6, (yMax - yMin)) * height;
+    ctx.strokeStyle = stroke;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    let started = false;
+    for (let i=0;i<tArr.length;i++){
+      const t=tArr[i], y=yArr[i];
+      if (!isFinite(t)||!isFinite(y)) { started=false; continue; }
+      if (t<tMin||t>tMax) continue;
+      const x=xOf(t), yy=yOf(y);
+      if (!started) { ctx.moveTo(x,yy); started=true; }
+      else ctx.lineTo(x,yy);
+    }
+    ctx.stroke();
+  }
+
+  function drawLoop() {
+    const win = Math.max(3, Number(el.winSec.value));
+    const tMax = isFinite(tNowSec()) ? tNowSec() : 0;
+    const tMin = Math.max(0, tMax - win);
+
+    // collect window
+    const tArr=[], fArr=[], aArr=[], vArr=[];
+    for (let i=0;i<logN;i++){
+      const t=tLog[i];
+      if (!isFinite(t) || t<tMin) continue;
+      tArr.push(t);
+      fArr.push(f2Log[i]);
+      aArr.push(aLog[i]);
+      vArr.push(vILog[i]);
     }
 
-    function getPeakFrequency() {
-      analyser.getFloatFrequencyData(freqData);
+    // f2 scale around f1
+    const f1 = Number(el.f1.value);
+    const span = Number(el.spanHz.value);
+    let fMin = (isFinite(f1)&&isFinite(span)) ? (f1-span) : 0;
+    let fMax = (isFinite(f1)&&isFinite(span)) ? (f1+span) : 1;
 
-      const hzPerBin = sampleRate / analyser.fftSize;
-      const minF = 300;
-      const maxF = 4000;
-      const startBin = Math.max(1, Math.floor(minF / hzPerBin));
-      const endBin = Math.min(freqData.length - 2, Math.floor(maxF / hzPerBin));
-
-      let maxDb = -Infinity;
-      let maxIndex = startBin;
-
-      for (let i = startBin; i <= endBin; i++) {
-        if (freqData[i] > maxDb) {
-          maxDb = freqData[i];
-          maxIndex = i;
-        }
-      }
-
-      const y1 = freqData[maxIndex - 1];
-      const y2 = freqData[maxIndex];
-      const y3 = freqData[maxIndex + 1];
-      const denom = (y1 - 2 * y2 + y3);
-      let delta = 0;
-      if (Math.abs(denom) > 1e-12) delta = 0.5 * (y1 - y3) / denom;
-
-      const peakBin = maxIndex + delta;
-      const peakFreq = peakBin * hzPerBin;
-      return { peakFreq, maxDb };
+    // a scale auto
+    const aVals = aArr.filter(Number.isFinite);
+    let aMin=-1, aMax=1;
+    if (aVals.length) {
+      aMin=Math.min(...aVals); aMax=Math.max(...aVals);
+      const pad=Math.max(0.2,(aMax-aMin)*0.2);
+      aMin-=pad; aMax+=pad;
     }
 
-    function drawChart(data, color="#2563eb", yLabel="Hz") {
-      g.clearRect(0, 0, canvas.width, canvas.height);
+    // v scale fixed
+    const vRange = Math.max(0.01, Number(el.vRange.value));
+    const vMin=-vRange, vMax=vRange;
 
-      const W = canvas.width, H = canvas.height;
-      const left = 54, right = 18, top = 18, bottom = 38;
-      const plotW = W - left - right;
-      const plotH = H - top - bottom;
+    drawAxes(ctxF2, el.cvF2.width, el.cvF2.height, "f2 – t", "f2 [Hz]");
+    drawSeries(ctxF2, el.cvF2.width, el.cvF2.height, tArr, fArr, tMin, tMax, fMin, fMax, "#1f77b4");
 
-      g.fillStyle = "#ffffff";
-      g.fillRect(0, 0, W, H);
+    drawAxes(ctxVA, el.cvVA.width, el.cvVA.height, "v_imu / a – t", "v[m/s] & a[m/s^2]");
+    drawSeries(ctxVA, el.cvVA.width, el.cvVA.height, tArr, vArr, tMin, tMax, vMin, vMax, "#ff7f0e");
+    drawSeries(ctxVA, el.cvVA.width, el.cvVA.height, tArr, aArr, tMin, tMax, aMin, aMax, "#2ca02c");
 
-      if (data.length < 2) {
-        g.strokeStyle = "#d8e1ea";
-        g.strokeRect(left, top, plotW, plotH);
-        return;
-      }
+    requestAnimationFrame(drawLoop);
+  }
 
-      const xs = data.map(p => p.t);
-      const ys = data.map(p => p.y);
+  // ---- wire buttons
+  el.btnSession.addEventListener("click", startSession);
+  el.btnStopAll.addEventListener("click", () => { stopMic(); stopIMU(); });
+  el.btnMic.addEventListener("click", startMic);
+  el.btnMicStop.addEventListener("click", stopMic);
+  el.btnIMU.addEventListener("click", startIMU);
+  el.btnIMUStop.addEventListener("click", stopIMU);
+  el.btnZeroV.addEventListener("click", zeroV);
 
-      let xmin = 0;
-      let xmax = Math.max(...xs);
-      let ymin = Math.min(...ys);
-      let ymax = Math.max(...ys);
+  // iOS crash avoidance
+  document.addEventListener("visibilitychange", () => {
+    if (document.hidden) { stopMic(); stopIMU(); }
+  });
 
-      if (xmax < 1) xmax = 1;
-      if (Math.abs(ymax - ymin) < 1e-6) {
-        ymax += 1;
-        ymin -= 1;
-      } else {
-        const pad = 0.08 * (ymax - ymin);
-        ymax += pad;
-        ymin -= pad;
-      }
-
-      g.strokeStyle = "#e8eef5";
-      g.lineWidth = 1;
-      for (let i = 0; i <= 5; i++) {
-        const y = top + plotH * i / 5;
-        g.beginPath();
-        g.moveTo(left, y);
-        g.lineTo(left + plotW, y);
-        g.stroke();
-      }
-      for (let i = 0; i <= 5; i++) {
-        const x = left + plotW * i / 5;
-        g.beginPath();
-        g.moveTo(x, top);
-        g.lineTo(x, top + plotH);
-        g.stroke();
-      }
-
-      g.strokeStyle = "#c9d5e2";
-      g.strokeRect(left, top, plotW, plotH);
-
-      g.strokeStyle = color;
-      g.lineWidth = 3;
-      g.beginPath();
-      data.forEach((p, i) => {
-        const x = left + plotW * (p.t - xmin) / (xmax - xmin);
-        const y = top + plotH * (1 - (p.y - ymin) / (ymax - ymin));
-        if (i === 0) g.moveTo(x, y);
-        else g.lineTo(x, y);
-      });
-      g.stroke();
-
-      g.fillStyle = "#5b6b7d";
-      g.font = "14px sans-serif";
-      g.fillText(`${ymax.toFixed(1)} ${yLabel}`, 6, top + 4);
-      g.fillText(`${ymin.toFixed(1)} ${yLabel}`, 6, top + plotH);
-      g.fillText("t [s]", left + plotW - 28, H - 8);
-      g.fillText("F-t", left + 8, top + 18);
-    }
-
-    function startMeasurement() {
-      armed = false;
-      measuring = true;
-      logs = [];
-      curve = [];
-      measureDurationMs = Number(durationSecEl.value) * 1000;
-      startEpochMs = Date.now();
-      statusEl.textContent = "状態: 測定中";
-      stopBtn.disabled = false;
-      csvBtn.disabled = true;
-    }
-
-    function stopMeasurement() {
-      measuring = false;
-      armed = false;
-      stopBtn.disabled = true;
-      csvBtn.disabled = logs.length === 0;
-      statusEl.textContent = `状態: 停止（${logs.length} 点）`;
-
-      if (logs.length) {
-        logView.textContent = logs.slice(0, 25).map(r =>
-          `${r.clock}, ${r.elapsed_s.toFixed(3)} s, ${r.freq_hz.toFixed(2)} Hz, ${r.df_hz.toFixed(2)} Hz`
-        ).join("\n");
-      }
-    }
-
-    function loop() {
-      requestAnimationFrame(loop);
-
-      const now = new Date();
-      const sec = now.getSeconds();
-      const ms = now.getMilliseconds();
-      const targetSec = Number(startSecondEl.value);
-
-      if (armed && !measuring) {
-        if (sec === targetSec && ms < 80) startMeasurement();
-      }
-
-      if (measuring && analyser) {
-        const { peakFreq, maxDb } = getPeakFrequency();
-        const nowMs = Date.now();
-        const t = (nowMs - startEpochMs) / 1000;
-        const f0 = Number(f0Input.value);
-        const df = peakFreq - f0;
-
-        freqView.textContent = `${peakFreq.toFixed(2)} Hz`;
-        dfView.textContent = `${df.toFixed(2)} Hz`;
-
-        logs.push({
-          clock: formatClock(new Date()),
-          elapsed_s: t,
-          freq_hz: peakFreq,
-          df_hz: df,
-          level_db: maxDb
-        });
-
-        curve.push({ t, y: peakFreq });
-        if (curve.length > 600) curve.shift();
-        drawChart(curve, "#2563eb", "Hz");
-
-        if (nowMs - startEpochMs >= measureDurationMs) {
-          stopMeasurement();
-        }
-      }
-    }
-    loop();
-
-    micBtn.addEventListener("click", async () => {
-      try {
-        await startMic();
-      } catch (e) {
-        statusEl.textContent = "状態: マイク起動失敗";
-        alert("マイクの起動に失敗しました。HTTPS で開いて、Safari のマイク許可を確認してください。");
-        console.error(e);
-      }
-    });
-
-    armBtn.addEventListener("click", () => {
-      if (!analyser) return;
-      armed = true;
-      measuring = false;
-      statusEl.textContent = `状態: 次の ${startSecondEl.value} 秒で開始待ち`;
-    });
-
-    stopBtn.addEventListener("click", stopMeasurement);
-
-    csvBtn.addEventListener("click", () => {
-      if (!logs.length) return;
-      let csv = "clock,elapsed_s,freq_hz,df_hz,level_db\n";
-      csv += logs.map(r =>
-        `${r.clock},${r.elapsed_s.toFixed(4)},${r.freq_hz.toFixed(4)},${r.df_hz.toFixed(4)},${r.level_db.toFixed(2)}`
-      ).join("\n");
-
-      const blob = new Blob([csv], { type: "text/csv" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = "doppler_ft_log.csv";
-      a.click();
-      URL.revokeObjectURL(url);
-    });
-  </script>
+  // start drawing
+  requestAnimationFrame(drawLoop);
+})();
+</script>
 </body>
 </html>
