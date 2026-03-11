@@ -70,13 +70,18 @@
       font-weight:700;
       margin-bottom:7px;
     }
-    .field input{
+    .field input,.field select{
       width:100%;
       padding:12px 14px;
       font-size:1rem;
       border:1px solid var(--line);
       border-radius:12px;
       background:#fff;
+    }
+    .time-selects{
+      display:grid;
+      grid-template-columns:1fr 1fr 1fr;
+      gap:10px;
     }
     .button-row{
       display:flex;
@@ -180,8 +185,12 @@
 
       <div class="controls">
         <div class="field">
-          <label for="startTimeInput">測定開始時刻</label>
-          <input id="startTimeInput" type="time" step="1">
+          <label>測定開始時刻</label>
+          <div class="time-selects">
+            <select id="hourSelect"></select>
+            <select id="minuteSelect"></select>
+            <select id="secondSelect"></select>
+          </div>
         </div>
 
         <div class="field">
@@ -243,7 +252,9 @@
 
     const clockEl = document.getElementById("clock");
     const nextInfoEl = document.getElementById("nextInfo");
-    const startTimeInput = document.getElementById("startTimeInput");
+    const hourSelect = document.getElementById("hourSelect");
+    const minuteSelect = document.getElementById("minuteSelect");
+    const secondSelect = document.getElementById("secondSelect");
     const durationSecEl = document.getElementById("durationSec");
     const f0Input = document.getElementById("f0Input");
     const searchWidthInput = document.getElementById("searchWidthInput");
@@ -278,30 +289,39 @@
       return String(n).padStart(len, "0");
     }
 
-    function formatClock1s(d) {
-      return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
-    }
+    function fillTimeSelects() {
+      for (let i = 0; i < 24; i++) {
+        const op = document.createElement("option");
+        op.value = i;
+        op.textContent = `${pad(i)}時`;
+        hourSelect.appendChild(op);
+      }
+      for (let i = 0; i < 60; i++) {
+        const op1 = document.createElement("option");
+        op1.value = i;
+        op1.textContent = `${pad(i)}分`;
+        minuteSelect.appendChild(op1);
 
-    function formatTimeInputValue(dateObj) {
-      return `${pad(dateObj.getHours())}:${pad(dateObj.getMinutes())}:${pad(dateObj.getSeconds())}`;
+        const op2 = document.createElement("option");
+        op2.value = i;
+        op2.textContent = `${pad(i)}秒`;
+        secondSelect.appendChild(op2);
+      }
     }
 
     function setDefaultStartTime() {
       const now = new Date();
       now.setSeconds(now.getSeconds() + 30);
       now.setMilliseconds(0);
-      startTimeInput.value = formatTimeInputValue(now);
+      hourSelect.value = now.getHours();
+      minuteSelect.value = now.getMinutes();
+      secondSelect.value = now.getSeconds();
     }
 
-    function parseStartTimeToday(hms) {
-      const m = hms.match(/^(\d{2}):(\d{2})(?::(\d{2}))?$/);
-      if (!m) return null;
-
-      const hh = Number(m[1]);
-      const mm = Number(m[2]);
-      const ss = Number(m[3] || 0);
-
-      if (hh > 23 || mm > 59 || ss > 59) return null;
+    function selectedTargetDate() {
+      const hh = Number(hourSelect.value);
+      const mm = Number(minuteSelect.value);
+      const ss = Number(secondSelect.value);
 
       const now = new Date();
       const target = new Date(now);
@@ -313,27 +333,29 @@
       return target;
     }
 
+    function formatClock1s(d) {
+      return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+    }
+
     function updateClock() {
       const now = new Date();
       clockEl.textContent = formatClock1s(now);
 
-      const target = parseStartTimeToday(startTimeInput.value);
-      if (!target) {
-        nextInfoEl.textContent = "開始時刻の形式が不正です";
-        return;
-      }
+      const target = armed ? new Date(targetStartEpochMs) : selectedTargetDate();
 
       if (measuring) {
         nextInfoEl.textContent = "測定中";
         return;
       }
 
-      const baseTarget = armed ? new Date(targetStartEpochMs) : target;
-      const remainSec = Math.max(0, Math.ceil((baseTarget.getTime() - Date.now()) / 1000));
-      nextInfoEl.textContent = `開始予定: ${formatClock1s(baseTarget)} まで ${remainSec} s`;
+      const remainSec = Math.max(0, Math.ceil((target.getTime() - Date.now()) / 1000));
+      nextInfoEl.textContent = `開始予定: ${formatClock1s(target)} まで ${remainSec} s`;
     }
 
-    setInterval(updateClock, 1000);
+    function median3(a, b, c) {
+      const arr = [a, b, c].sort((x, y) => x - y);
+      return arr[1];
+    }
 
     async function startMic() {
       const stream = await navigator.mediaDevices.getUserMedia({
@@ -359,11 +381,6 @@
       statusEl.textContent = "状態: マイク準備完了";
       micBtn.disabled = true;
       armBtn.disabled = false;
-    }
-
-    function median3(a, b, c) {
-      const arr = [a, b, c].sort((x, y) => x - y);
-      return arr[1];
     }
 
     function detectFrequencyNearF0(f0, halfWidthHz) {
@@ -513,12 +530,7 @@
     function reserveMeasurement() {
       if (!analyser) return;
 
-      const target = parseStartTimeToday(startTimeInput.value);
-      if (!target) {
-        statusEl.textContent = "状態: 開始時刻の形式が不正です";
-        return;
-      }
-
+      const target = selectedTargetDate();
       targetStartEpochMs = target.getTime();
       measureDurationMs = Number(durationSecEl.value) * 1000;
       armed = true;
@@ -596,6 +608,11 @@
       }
     }
 
+    fillTimeSelects();
+    setDefaultStartTime();
+    setInterval(updateClock, 1000);
+    updateClock();
+    drawChart([], "#2563eb", "Hz", "F-t");
     loop();
 
     micBtn.addEventListener("click", async () => {
@@ -616,10 +633,6 @@
       const ok = await copyText(buildTSV());
       statusEl.textContent = ok ? "状態: TSVをコピーしました" : "状態: コピーに失敗しました";
     });
-
-    setDefaultStartTime();
-    drawChart([], "#2563eb", "Hz", "F-t");
-    updateClock();
   </script>
 </body>
 </html>
