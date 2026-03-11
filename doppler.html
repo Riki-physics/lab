@@ -78,6 +78,27 @@
       border-radius:12px;
       background:#fff;
     }
+    .mode-row{
+      display:flex;
+      gap:10px;
+      flex-wrap:wrap;
+      margin-bottom:14px;
+    }
+    .mode-btn{
+      border:1px solid var(--line);
+      background:#fff;
+      color:var(--text);
+      border-radius:999px;
+      padding:10px 14px;
+      font-size:.95rem;
+      font-weight:700;
+      cursor:pointer;
+    }
+    .mode-btn.active{
+      background:var(--accent);
+      color:#fff;
+      border-color:var(--accent);
+    }
     .quick-row{
       margin-top:16px;
     }
@@ -134,7 +155,6 @@
       margin-top:14px;
       font-size:.96rem;
       color:var(--sub);
-      white-space:pre-wrap;
     }
     .stats{
       display:grid;
@@ -189,6 +209,9 @@
       font-size:.9rem;
       color:var(--sub);
     }
+    .hidden{
+      display:none;
+    }
     @media (max-width:720px){
       .controls,.stats{grid-template-columns:1fr}
       .clock{font-size:1.8rem}
@@ -207,7 +230,12 @@
     <div class="card">
       <div class="section-title">計測設定</div>
 
-      <div class="controls">
+      <div class="mode-row">
+        <button id="modeClockBtn" class="mode-btn active" type="button">時刻指定で開始</button>
+        <button id="modeDelayBtn" class="mode-btn" type="button">今から○秒後に開始</button>
+      </div>
+
+      <div id="clockModeFields" class="controls">
         <div class="field">
           <label for="startSecond">開始秒（5秒刻み）</label>
           <select id="startSecond"></select>
@@ -229,6 +257,28 @@
         </div>
       </div>
 
+      <div id="delayModeFields" class="controls hidden">
+        <div class="field">
+          <label for="delaySec">開始までの秒数 [s]</label>
+          <input id="delaySec" type="number" min="3" max="60" step="1" value="10">
+        </div>
+
+        <div class="field">
+          <label for="durationSec2">測定時間 [s]</label>
+          <input id="durationSec2" type="number" min="1" max="60" step="1" value="5">
+        </div>
+
+        <div class="field">
+          <label for="f0Input2">基準周波数 f0 [Hz]</label>
+          <input id="f0Input2" type="number" min="100" max="5000" step="1" value="1200">
+        </div>
+
+        <div class="field">
+          <label for="searchWidthInput2">探索幅 ± [Hz]</label>
+          <input id="searchWidthInput2" type="number" min="20" max="1000" step="10" value="200">
+        </div>
+      </div>
+
       <div class="quick-row">
         <div class="quick-label">よく使う時間</div>
         <div class="pillbox">
@@ -240,15 +290,14 @@
       </div>
 
       <div class="button-row">
-        <button id="syncBtn" class="action" type="button">時刻同期</button>
         <button id="micBtn" class="action primary" type="button">マイク開始</button>
-        <button id="armBtn" class="action" type="button" disabled>時刻予約</button>
+        <button id="armBtn" class="action" type="button" disabled>開始予約</button>
         <button id="stopBtn" class="action" type="button" disabled>停止</button>
         <button id="copyBtn" class="action" type="button" disabled>TSVをコピー</button>
       </div>
 
       <div class="status" id="status">状態: 未開始</div>
-      <div class="hint">Arduino AP に接続した状態で使います。出力は t_s, freq_hz, df_hz の3列TSVです。</div>
+      <div class="hint">時刻同期できないときは「今から○秒後に開始」を使います。出力は t_s, freq_hz, df_hz の3列TSVです。</div>
     </div>
 
     <div class="card">
@@ -280,7 +329,6 @@
 
   <script>
     const SAMPLE_INTERVAL_MS = 50;
-    const ARDUINO_HOST = "http://192.168.4.1";
 
     const clockEl = document.getElementById("clock");
     const nextInfoEl = document.getElementById("nextInfo");
@@ -288,7 +336,17 @@
     const durationSecEl = document.getElementById("durationSec");
     const f0Input = document.getElementById("f0Input");
     const searchWidthInput = document.getElementById("searchWidthInput");
-    const syncBtn = document.getElementById("syncBtn");
+
+    const delaySecEl = document.getElementById("delaySec");
+    const durationSec2El = document.getElementById("durationSec2");
+    const f0Input2 = document.getElementById("f0Input2");
+    const searchWidthInput2 = document.getElementById("searchWidthInput2");
+
+    const modeClockBtn = document.getElementById("modeClockBtn");
+    const modeDelayBtn = document.getElementById("modeDelayBtn");
+    const clockModeFields = document.getElementById("clockModeFields");
+    const delayModeFields = document.getElementById("delayModeFields");
+
     const micBtn = document.getElementById("micBtn");
     const armBtn = document.getElementById("armBtn");
     const stopBtn = document.getElementById("stopBtn");
@@ -300,6 +358,8 @@
 
     const canvas = document.getElementById("chart");
     const g = canvas.getContext("2d");
+
+    let startMode = "clock"; // clock or delay
 
     for (let i = 0; i < 60; i += 5) {
       const op = document.createElement("option");
@@ -314,18 +374,32 @@
         document.querySelectorAll(".pill").forEach(b => b.classList.remove("active"));
         btn.classList.add("active");
         durationSecEl.value = btn.dataset.sec;
+        durationSec2El.value = btn.dataset.sec;
       });
     });
+
+    function setMode(mode) {
+      startMode = mode;
+      const clockActive = mode === "clock";
+      modeClockBtn.classList.toggle("active", clockActive);
+      modeDelayBtn.classList.toggle("active", !clockActive);
+      clockModeFields.classList.toggle("hidden", !clockActive);
+      delayModeFields.classList.toggle("hidden", clockActive);
+      updateClock();
+    }
+
+    modeClockBtn.addEventListener("click", () => setMode("clock"));
+    modeDelayBtn.addEventListener("click", () => setMode("delay"));
 
     let audioContext = null;
     let analyser = null;
     let freqData = null;
     let sampleRate = 48000;
 
-    let synced = false;
     let armed = false;
     let measuring = false;
     let startEpochMs = 0;
+    let scheduledStartMs = 0;
     let measureDurationMs = 5000;
     let lastSampleMs = 0;
 
@@ -341,26 +415,30 @@
       return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
     }
 
-    function nextTargetDate() {
-      const now = new Date();
-      const targetSec = Number(startSecondEl.value);
-      const next = new Date(now);
-      next.setMilliseconds(0);
-      next.setSeconds(targetSec);
-      if (next <= now) next.setMinutes(next.getMinutes() + 1);
-      return next;
-    }
-
     function updateClock() {
       const now = new Date();
       clockEl.textContent = formatClock1s(now);
 
-      const next = nextTargetDate();
-      const remainSec = Math.ceil((next - now) / 1000);
-      if (!measuring) {
-        nextInfoEl.textContent =
-          `次の開始予定: ${pad(next.getHours())}:${pad(next.getMinutes())}:${pad(next.getSeconds())} まで ${remainSec} s`;
+      if (measuring) {
+        nextInfoEl.textContent = "測定中";
+        return;
       }
+
+      if (armed && startMode === "delay") {
+        const remain = Math.max(0, Math.ceil((scheduledStartMs - Date.now()) / 1000));
+        nextInfoEl.textContent = `開始まで ${remain} s`;
+        return;
+      }
+
+      const targetSec = Number(startSecondEl.value);
+      let next = new Date(now);
+      next.setMilliseconds(0);
+      next.setSeconds(targetSec);
+      if (next <= now) next.setMinutes(next.getMinutes() + 1);
+
+      const remainSec = Math.ceil((next - now) / 1000);
+      nextInfoEl.textContent =
+        `次の開始予定: ${pad(next.getHours())}:${pad(next.getMinutes())}:${pad(next.getSeconds())} まで ${remainSec} s`;
     }
 
     setInterval(updateClock, 1000);
@@ -389,12 +467,24 @@
 
       statusEl.textContent = "状態: マイク準備完了";
       micBtn.disabled = true;
-      if (synced) armBtn.disabled = false;
+      armBtn.disabled = false;
     }
 
     function median3(a, b, c) {
       const arr = [a, b, c].sort((x, y) => x - y);
       return arr[1];
+    }
+
+    function getF0() {
+      return startMode === "clock" ? Number(f0Input.value) : Number(f0Input2.value);
+    }
+
+    function getSearchWidth() {
+      return startMode === "clock" ? Number(searchWidthInput.value) : Number(searchWidthInput2.value);
+    }
+
+    function getDurationMs() {
+      return (startMode === "clock" ? Number(durationSecEl.value) : Number(durationSec2El.value)) * 1000;
     }
 
     function detectFrequencyNearF0(f0, halfWidthHz) {
@@ -490,6 +580,7 @@
       let ymax = Math.max(...ys);
 
       if (xmax < 1) xmax = 1;
+
       if (Math.abs(ymax - ymin) < 1e-9) {
         ymax += 1;
         ymin -= 1;
@@ -540,29 +631,37 @@
       }
     }
 
-    async function syncTimeWithArduino() {
-      const now = Date.now();
-      const url = `${ARDUINO_HOST}/sync?epoch_ms=${now}`;
-      const res = await fetch(url, {cache:"no-store"});
-      if (!res.ok) throw new Error("sync failed");
-      synced = true;
-      statusEl.textContent = "状態: 時刻同期完了";
-      if (analyser) armBtn.disabled = false;
-    }
-
-    function startMeasurement() {
-      armed = false;
+    function beginMeasurementNow() {
       measuring = true;
+      armed = false;
       logs = [];
       curve = [];
       freqHistory = [];
-      measureDurationMs = Number(durationSecEl.value) * 1000;
+      measureDurationMs = getDurationMs();
       startEpochMs = Date.now();
       lastSampleMs = startEpochMs;
       statusEl.textContent = "状態: 測定中";
       stopBtn.disabled = false;
       copyBtn.disabled = true;
       drawChart([], "#2563eb", "Hz", "F-t");
+      updateClock();
+    }
+
+    function reserveMeasurement() {
+      if (!analyser) return;
+
+      measuring = false;
+      armed = true;
+      measureDurationMs = getDurationMs();
+
+      if (startMode === "delay") {
+        const delaySec = Number(delaySecEl.value);
+        scheduledStartMs = Date.now() + delaySec * 1000;
+        statusEl.textContent = `状態: ${delaySec}秒後に開始待ち`;
+      } else {
+        statusEl.textContent = `状態: 次の ${startSecondEl.value} 秒で開始待ち`;
+      }
+      updateClock();
     }
 
     function stopMeasurement() {
@@ -577,6 +676,7 @@
           `${r.t_s.toFixed(2)}\t${r.freq_hz.toFixed(2)}\t${r.df_hz.toFixed(2)}`
         ).join("\n");
       }
+      updateClock();
     }
 
     function loop() {
@@ -585,18 +685,24 @@
       const now = new Date();
       const sec = now.getSeconds();
       const ms = now.getMilliseconds();
-      const targetSec = Number(startSecondEl.value);
 
       if (armed && !measuring) {
-        if (sec === targetSec && ms < 150) {
-          startMeasurement();
+        if (startMode === "clock") {
+          const targetSec = Number(startSecondEl.value);
+          if (sec === targetSec && ms < 150) {
+            beginMeasurementNow();
+          }
+        } else {
+          if (Date.now() >= scheduledStartMs) {
+            beginMeasurementNow();
+          }
         }
       }
 
       if (measuring && analyser) {
         const nowMs = Date.now();
-        const f0 = Number(f0Input.value);
-        const halfWidthHz = Number(searchWidthInput.value);
+        const f0 = getF0();
+        const halfWidthHz = getSearchWidth();
 
         while (nowMs - lastSampleMs >= SAMPLE_INTERVAL_MS) {
           lastSampleMs += SAMPLE_INTERVAL_MS;
@@ -628,43 +734,18 @@
 
     loop();
 
-    syncBtn.addEventListener("click", async () => {
-      try {
-        await syncTimeWithArduino();
-      } catch (e) {
-        statusEl.textContent = "状態: 時刻同期失敗";
-      }
-    });
-
     micBtn.addEventListener("click", async () => {
       try {
         await startMic();
       } catch (e) {
         statusEl.textContent = "状態: マイク起動失敗";
-        alert("マイクの起動に失敗しました。Safariのマイク許可を確認してください。");
+        alert("マイクの起動に失敗しました。HTTPSで開いて、Safariのマイク許可を確認してください。");
+        console.error(e);
       }
     });
 
-    armBtn.addEventListener("click", async () => {
-      try {
-        const sec = Number(startSecondEl.value);
-        const dur = Number(durationSecEl.value);
-        const res = await fetch(`${ARDUINO_HOST}/arm?sec=${sec}&dur=${dur}`, {cache:"no-store"});
-        if (!res.ok) throw new Error("arm failed");
-        armed = true;
-        measuring = false;
-        statusEl.textContent = `状態: 次の ${sec} 秒で開始待ち`;
-      } catch (e) {
-        statusEl.textContent = "状態: 予約失敗";
-      }
-    });
-
-    stopBtn.addEventListener("click", async () => {
-      stopMeasurement();
-      try {
-        await fetch(`${ARDUINO_HOST}/stop`, {cache:"no-store"});
-      } catch (e) {}
-    });
+    armBtn.addEventListener("click", reserveMeasurement);
+    stopBtn.addEventListener("click", stopMeasurement);
 
     copyBtn.addEventListener("click", async () => {
       if (logs.length === 0) return;
