@@ -217,7 +217,7 @@
       </div>
 
       <div class="status" id="status">状態: 未開始</div>
-      <div class="hint">ページを開くと、開始時刻は自動で今から30秒後になります。出力は t_s, freq_hz, df_hz の3列TSVです。</div>
+      <div class="hint">秒は 5 秒刻みです。ページを開くと開始時刻は自動で今から30秒後になります。出力は t_s, freq_hz, df_hz の3列TSVです。</div>
     </div>
 
     <div class="card">
@@ -289,6 +289,19 @@
       return String(n).padStart(len, "0");
     }
 
+    function roundUpToNext5Sec(dateObj) {
+      const d = new Date(dateObj);
+      d.setMilliseconds(0);
+      let sec = d.getSeconds();
+      let nextSec = Math.ceil(sec / 5) * 5;
+      if (nextSec >= 60) {
+        d.setMinutes(d.getMinutes() + 1);
+        nextSec = 0;
+      }
+      d.setSeconds(nextSec);
+      return d;
+    }
+
     function fillTimeSelects() {
       for (let i = 0; i < 24; i++) {
         const op = document.createElement("option");
@@ -301,7 +314,8 @@
         op1.value = i;
         op1.textContent = `${pad(i)}分`;
         minuteSelect.appendChild(op1);
-
+      }
+      for (let i = 0; i < 60; i += 5) {
         const op2 = document.createElement("option");
         op2.value = i;
         op2.textContent = `${pad(i)}秒`;
@@ -312,10 +326,10 @@
     function setDefaultStartTime() {
       const now = new Date();
       now.setSeconds(now.getSeconds() + 30);
-      now.setMilliseconds(0);
-      hourSelect.value = now.getHours();
-      minuteSelect.value = now.getMinutes();
-      secondSelect.value = now.getSeconds();
+      const rounded = roundUpToNext5Sec(now);
+      hourSelect.value = rounded.getHours();
+      minuteSelect.value = rounded.getMinutes();
+      secondSelect.value = rounded.getSeconds();
     }
 
     function selectedTargetDate() {
