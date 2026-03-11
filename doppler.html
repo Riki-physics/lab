@@ -78,34 +78,6 @@
       border-radius:12px;
       background:#fff;
     }
-    .quick-row{
-      margin-top:16px;
-    }
-    .quick-label{
-      font-size:.92rem;
-      font-weight:700;
-      margin-bottom:8px;
-    }
-    .pillbox{
-      display:flex;
-      gap:8px;
-      flex-wrap:wrap;
-    }
-    .pill{
-      border:1px solid var(--line);
-      background:#fff;
-      color:var(--text);
-      border-radius:999px;
-      padding:10px 14px;
-      font-size:.95rem;
-      font-weight:700;
-      cursor:pointer;
-    }
-    .pill.active{
-      background:var(--accent);
-      color:#fff;
-      border-color:var(--accent);
-    }
     .button-row{
       display:flex;
       flex-wrap:wrap;
@@ -208,8 +180,8 @@
 
       <div class="controls">
         <div class="field">
-          <label for="startTimeInput">測定開始時刻（HH:MM:SS）</label>
-          <input id="startTimeInput" type="text" value="12:00:20" inputmode="numeric" placeholder="例 14:32:20">
+          <label for="startTimeInput">測定開始時刻</label>
+          <input id="startTimeInput" type="time" step="1">
         </div>
 
         <div class="field">
@@ -228,16 +200,6 @@
         </div>
       </div>
 
-      <div class="quick-row">
-        <div class="quick-label">開始時刻の簡単設定</div>
-        <div class="pillbox">
-          <button class="pill" type="button" data-delay="10">今から10秒後</button>
-          <button class="pill active" type="button" data-delay="20">今から20秒後</button>
-          <button class="pill" type="button" data-delay="30">今から30秒後</button>
-          <button class="pill" type="button" id="next10sBtn">次の10秒区切り</button>
-        </div>
-      </div>
-
       <div class="button-row">
         <button id="micBtn" class="action primary" type="button">マイク開始</button>
         <button id="armBtn" class="action" type="button" disabled>開始予約</button>
@@ -246,7 +208,7 @@
       </div>
 
       <div class="status" id="status">状態: 未開始</div>
-      <div class="hint">Safari で HTTPS のページとして開いてください。出力は t_s, freq_hz, df_hz の3列TSVです。</div>
+      <div class="hint">ページを開くと、開始時刻は自動で今から30秒後になります。出力は t_s, freq_hz, df_hz の3列TSVです。</div>
     </div>
 
     <div class="card">
@@ -293,7 +255,6 @@
     const freqView = document.getElementById("freqView");
     const dfView = document.getElementById("dfView");
     const logView = document.getElementById("logView");
-    const next10sBtn = document.getElementById("next10sBtn");
 
     const canvas = document.getElementById("chart");
     const g = canvas.getContext("2d");
@@ -321,17 +282,24 @@
       return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
     }
 
-    function formatHMS(dateObj) {
+    function formatTimeInputValue(dateObj) {
       return `${pad(dateObj.getHours())}:${pad(dateObj.getMinutes())}:${pad(dateObj.getSeconds())}`;
     }
 
+    function setDefaultStartTime() {
+      const now = new Date();
+      now.setSeconds(now.getSeconds() + 30);
+      now.setMilliseconds(0);
+      startTimeInput.value = formatTimeInputValue(now);
+    }
+
     function parseStartTimeToday(hms) {
-      const m = hms.trim().match(/^(\d{1,2}):(\d{1,2}):(\d{1,2})$/);
+      const m = hms.match(/^(\d{2}):(\d{2})(?::(\d{2}))?$/);
       if (!m) return null;
 
       const hh = Number(m[1]);
       const mm = Number(m[2]);
-      const ss = Number(m[3]);
+      const ss = Number(m[3] || 0);
 
       if (hh > 23 || mm > 59 || ss > 59) return null;
 
@@ -339,43 +307,11 @@
       const target = new Date(now);
       target.setHours(hh, mm, ss, 0);
 
-      // すでに過去なら翌日扱い
       if (target.getTime() <= now.getTime()) {
         target.setDate(target.getDate() + 1);
       }
       return target;
     }
-
-    function setStartTimeAfter(sec) {
-      const now = new Date();
-      now.setMilliseconds(0);
-      now.setSeconds(now.getSeconds() + sec);
-      startTimeInput.value = formatHMS(now);
-      updateClock();
-    }
-
-    function setStartTimeNext10s() {
-      const now = new Date();
-      const sec = now.getSeconds();
-      const next = new Date(now);
-      next.setMilliseconds(0);
-      next.setSeconds(Math.floor(sec / 10) * 10 + 10);
-      startTimeInput.value = formatHMS(next);
-      updateClock();
-    }
-
-    document.querySelectorAll(".pill[data-delay]").forEach(btn => {
-      btn.addEventListener("click", () => {
-        document.querySelectorAll(".pill[data-delay]").forEach(b => b.classList.remove("active"));
-        btn.classList.add("active");
-        setStartTimeAfter(Number(btn.dataset.delay));
-      });
-    });
-
-    next10sBtn.addEventListener("click", () => {
-      document.querySelectorAll(".pill[data-delay]").forEach(b => b.classList.remove("active"));
-      setStartTimeNext10s();
-    });
 
     function updateClock() {
       const now = new Date();
@@ -392,17 +328,12 @@
         return;
       }
 
-      if (armed) {
-        const remainSec = Math.max(0, Math.ceil((targetStartEpochMs - Date.now()) / 1000));
-        nextInfoEl.textContent = `開始予定: ${formatHMS(target)} まで ${remainSec} s`;
-      } else {
-        const remainSec = Math.max(0, Math.ceil((target.getTime() - Date.now()) / 1000));
-        nextInfoEl.textContent = `開始予定: ${formatHMS(target)} まで ${remainSec} s`;
-      }
+      const baseTarget = armed ? new Date(targetStartEpochMs) : target;
+      const remainSec = Math.max(0, Math.ceil((baseTarget.getTime() - Date.now()) / 1000));
+      nextInfoEl.textContent = `開始予定: ${formatClock1s(baseTarget)} まで ${remainSec} s`;
     }
 
     setInterval(updateClock, 1000);
-    setStartTimeAfter(20);
 
     async function startMic() {
       const stream = await navigator.mediaDevices.getUserMedia({
@@ -592,7 +523,7 @@
       measureDurationMs = Number(durationSecEl.value) * 1000;
       armed = true;
       measuring = false;
-      statusEl.textContent = `状態: ${formatHMS(target)} に開始待ち`;
+      statusEl.textContent = `状態: ${formatClock1s(target)} に開始待ち`;
       updateClock();
     }
 
@@ -686,6 +617,7 @@
       statusEl.textContent = ok ? "状態: TSVをコピーしました" : "状態: コピーに失敗しました";
     });
 
+    setDefaultStartTime();
     drawChart([], "#2563eb", "Hz", "F-t");
     updateClock();
   </script>
