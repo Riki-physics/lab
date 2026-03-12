@@ -217,7 +217,10 @@
       </div>
 
       <div class="status" id="status">状態: 未開始</div>
-      <div class="hint">秒は 5 秒刻みです。ページを開くと開始時刻は自動で今から30秒後になります。出力は t_s, freq_hz, df_hz の3列TSVです。</div>
+      <div class="hint">
+        秒は5秒刻みです。開始時刻は自動で今から30秒後になります。出力は t_s, freq_hz, df_hz の3列TSVです。<br>
+        グラフは散布図表示、周波数推定は少し滑らかになるよう調整しています。
+      </div>
     </div>
 
     <div class="card">
@@ -248,7 +251,7 @@
   </div>
 
   <script>
-    const SAMPLE_INTERVAL_MS = 50;
+    const SAMPLE_INTERVAL_MS = 100;
 
     const clockEl = document.getElementById("clock");
     const nextInfoEl = document.getElementById("nextInfo");
@@ -284,6 +287,7 @@
     let logs = [];
     let curve = [];
     let freqHistory = [];
+    let lastValidFreq = null;
 
     function pad(n, len = 2) {
       return String(n).padStart(len, "0");
@@ -366,9 +370,9 @@
       nextInfoEl.textContent = `開始予定: ${formatClock1s(target)} まで ${remainSec} s`;
     }
 
-    function median3(a, b, c) {
-      const arr = [a, b, c].sort((x, y) => x - y);
-      return arr[1];
+    function median(arr) {
+      const s = [...arr].sort((a, b) => a - b);
+      return s[Math.floor(s.length / 2)];
     }
 
     async function startMic() {
@@ -385,8 +389,8 @@
 
       const source = audioContext.createMediaStreamSource(stream);
       analyser = audioContext.createAnalyser();
-      analyser.fftSize = 8192;
-      analyser.smoothingTimeConstant = 0.08;
+      analyser.fftSize = 16384;
+      analyser.smoothingTimeConstant = 0.15;
 
       source.connect(analyser);
       freqData = new Float32Array(analyser.frequencyBinCount);
@@ -430,13 +434,22 @@
       const refinedBin = maxIndex + delta;
       const refinedFreq = refinedBin * hzPerBin;
 
-      freqHistory.push(refinedFreq);
-      if (freqHistory.length > 3) freqHistory.shift();
-
-      if (freqHistory.length === 3) {
-        return median3(freqHistory[0], freqHistory[1], freqHistory[2]);
+      if (maxDb < -80) {
+        return lastValidFreq ?? f0;
       }
-      return refinedFreq;
+
+      freqHistory.push(refinedFreq);
+      if (freqHistory.length > 5) freqHistory.shift();
+
+      let result;
+      if (freqHistory.length >= 3) {
+        result = median(freqHistory);
+      } else {
+        result = refinedFreq;
+      }
+
+      lastValidFreq = result;
+      return result;
     }
 
     function drawChart(data, color = "#2563eb", yLabel = "Hz", title = "F-t") {
@@ -479,7 +492,7 @@
       g.fillText(title, left + 8, top + 18);
       g.fillText("t [s]", left + plotW - 28, H - 10);
 
-      if (data.length < 2) return;
+      if (data.length < 1) return;
 
       const xs = data.map(p => p.t);
       const ys = data.map(p => p.y);
@@ -503,18 +516,15 @@
       g.fillText(`${ymax.toFixed(1)} ${yLabel}`, 8, top + 14);
       g.fillText(`${ymin.toFixed(1)} ${yLabel}`, 8, top + plotH);
 
-      g.strokeStyle = color;
-      g.lineWidth = 3;
-      g.beginPath();
-
-      data.forEach((p, i) => {
+      g.fillStyle = color;
+      data.forEach((p) => {
         const x = left + plotW * (p.t - xmin) / (xmax - xmin);
         const y = top + plotH * (1 - (p.y - ymin) / (ymax - ymin));
-        if (i === 0) g.moveTo(x, y);
-        else g.lineTo(x, y);
-      });
 
-      g.stroke();
+        g.beginPath();
+        g.arc(x, y, 3.2, 0, Math.PI * 2);
+        g.fill();
+      });
     }
 
     function buildTSV() {
@@ -559,6 +569,7 @@
       logs = [];
       curve = [];
       freqHistory = [];
+      lastValidFreq = null;
       lastSampleMs = targetStartEpochMs;
       statusEl.textContent = "状態: 測定中";
       stopBtn.disabled = false;
