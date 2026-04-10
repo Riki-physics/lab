@@ -601,6 +601,8 @@
     }
 
     function detectFrequencyNearF0(f0, halfWidthHz) {
+      if (!analyser || !freqData) return f0;
+
       analyser.getFloatFrequencyData(freqData);
 
       const hzPerBin = sampleRate / analyser.fftSize;
@@ -852,36 +854,36 @@
         beginMeasurementNow();
       }
 
-      if (measuring && analyser) {
-        const nowMs = Date.now();
-        const f0 = Number(f0Input.value);
-        const halfWidthHz = Number(searchWidthInput.value);
+      if (!measuring || !analyser) return;
 
-        while (nowMs - lastSampleMs >= SAMPLE_INTERVAL_MS) {
-          lastSampleMs += SAMPLE_INTERVAL_MS;
+      const nowMs = Date.now();
+      const f0 = Number(f0Input.value);
+      const halfWidthHz = Number(searchWidthInput.value);
 
-          const f = detectFrequencyNearF0(f0, halfWidthHz);
-          const t = (lastSampleMs - targetStartEpochMs) / 1000;
-          const df = f - f0;
+      while (nowMs - lastSampleMs >= SAMPLE_INTERVAL_MS) {
+        lastSampleMs += SAMPLE_INTERVAL_MS;
 
-          freqView.textContent = `${f.toFixed(2)} Hz`;
-          dfView.textContent = `${df.toFixed(2)} Hz`;
+        const f = detectFrequencyNearF0(f0, halfWidthHz);
+        const t = (lastSampleMs - targetStartEpochMs) / 1000;
+        const df = f - f0;
 
-          logs.push({
-            t_s: t,
-            freq_hz: f,
-            df_hz: df
-          });
+        freqView.textContent = `${f.toFixed(2)} Hz`;
+        dfView.textContent = `${df.toFixed(2)} Hz`;
 
-          curve.push({ t, y: f });
-          if (curve.length > 600) curve.shift();
-        }
+        logs.push({
+          t_s: t,
+          freq_hz: f,
+          df_hz: df
+        });
 
-        drawChart(curve, "#60a5fa", "Hz", "F-t");
+        curve.push({ t, y: f });
+        if (curve.length > 600) curve.shift();
+      }
 
-        if (nowMs - targetStartEpochMs >= measureDurationMs) {
-          stopMeasurement();
-        }
+      drawChart(curve, "#60a5fa", "Hz", "F-t");
+
+      if (nowMs - targetStartEpochMs >= measureDurationMs) {
+        stopMeasurement();
       }
     }
 
@@ -940,6 +942,7 @@
     setInterval(updateStatusDisplays, 200);
     drawChart([], "#60a5fa", "Hz", "F-t");
     updateStatusDisplays();
+    loop();
   </script>
 </body>
 </html>
