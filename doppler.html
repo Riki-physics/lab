@@ -11,29 +11,20 @@
       --text:#1f2937;
       --sub:#6b7280;
       --line:#d1d5db;
-
       --obs-main:#dbeafe;
       --obs-strong:#60a5fa;
-      --obs-deep:#2563eb;
       --obs-soft:#eff6ff;
-
       --src-main:#fee2e2;
       --src-strong:#f87171;
-      --src-deep:#dc2626;
       --src-soft:#fef2f2;
-
-      --grid:#e5e7eb;
     }
-
     *{box-sizing:border-box}
-
     body{
       margin:0;
       font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
       background:var(--bg);
       color:var(--text);
     }
-
     .topbar{
       position:sticky;
       top:0;
@@ -43,26 +34,22 @@
       padding:14px 16px 12px;
       backdrop-filter:blur(8px);
     }
-
     .next{
       font-size:1rem;
       color:var(--sub);
       font-weight:700;
       text-align:center;
     }
-
     .wrap{
       max-width:980px;
       margin:0 auto;
       padding:16px;
     }
-
     .tabs{
       display:flex;
       gap:10px;
       margin-bottom:16px;
     }
-
     .tab-btn{
       flex:1;
       border:none;
@@ -74,34 +61,13 @@
       color:var(--text);
       transition:.18s ease;
     }
+    .tab-btn.observer{ background:var(--obs-main); color:#1e3a8a; }
+    .tab-btn.source{ background:var(--src-main); color:#991b1b; }
+    .tab-btn.observer.active{ background:var(--obs-strong); color:#fff; }
+    .tab-btn.source.active{ background:var(--src-strong); color:#fff; }
 
-    .tab-btn.observer{
-      background:var(--obs-main);
-      color:#1e3a8a;
-    }
-
-    .tab-btn.source{
-      background:var(--src-main);
-      color:#991b1b;
-    }
-
-    .tab-btn.observer.active{
-      background:var(--obs-strong);
-      color:#fff;
-    }
-
-    .tab-btn.source.active{
-      background:var(--src-strong);
-      color:#fff;
-    }
-
-    .tab-panel{
-      display:none;
-    }
-
-    .tab-panel.active{
-      display:block;
-    }
+    .tab-panel{ display:none; }
+    .tab-panel.active{ display:block; }
 
     .card{
       background:var(--panel);
@@ -111,45 +77,29 @@
       margin-bottom:16px;
       box-shadow:0 2px 10px rgba(0,0,0,.04);
     }
-
-    .observer-theme .card{
-      background:var(--obs-soft);
-      border-color:#bfdbfe;
-    }
-
-    .source-theme .card{
-      background:var(--src-soft);
-      border-color:#fecaca;
-    }
+    .observer-theme .card{ background:var(--obs-soft); border-color:#bfdbfe; }
+    .source-theme .card{ background:var(--src-soft); border-color:#fecaca; }
 
     .section-title{
       font-size:1.05rem;
       font-weight:800;
       margin-bottom:14px;
     }
-
-    .observer-theme .section-title{
-      color:#1d4ed8;
-    }
-
-    .source-theme .section-title{
-      color:#dc2626;
-    }
+    .observer-theme .section-title{ color:#1d4ed8; }
+    .source-theme .section-title{ color:#dc2626; }
 
     .controls{
       display:grid;
       grid-template-columns:repeat(2,minmax(0,1fr));
       gap:14px 16px;
     }
-
     .field label{
       display:block;
       font-size:.92rem;
       font-weight:700;
       margin-bottom:7px;
     }
-
-    .field input,.field select{
+    .field input{
       width:100%;
       padding:12px 14px;
       font-size:1rem;
@@ -159,25 +109,12 @@
       color:var(--text);
     }
 
-    .observer-theme .field input,
-    .observer-theme .field select{
-      border-color:#bfdbfe;
-      background:#ffffff;
-    }
-
-    .source-theme .field input,
-    .source-theme .field select{
-      border-color:#fecaca;
-      background:#ffffff;
-    }
-
     .button-row{
       display:flex;
       flex-wrap:wrap;
       gap:10px;
       margin-top:16px;
     }
-
     button.action{
       border:none;
       border-radius:12px;
@@ -188,26 +125,10 @@
       color:var(--text);
       transition:.18s ease;
     }
-
-    .observer-theme button.action{
-      background:#dbeafe;
-      color:#1e3a8a;
-    }
-
-    .observer-theme button.action.primary{
-      background:#60a5fa;
-      color:#fff;
-    }
-
-    .source-theme button.action{
-      background:#fee2e2;
-      color:#991b1b;
-    }
-
-    .source-theme button.action.primary{
-      background:#f87171;
-      color:#fff;
-    }
+    .observer-theme button.action{ background:#dbeafe; color:#1e3a8a; }
+    .observer-theme button.action.primary{ background:#60a5fa; color:#fff; }
+    .source-theme button.action{ background:#fee2e2; color:#991b1b; }
+    .source-theme button.action.primary{ background:#f87171; color:#fff; }
 
     button.action:disabled{
       opacity:.45;
@@ -234,16 +155,6 @@
       background:#fff;
     }
 
-    .observer-theme .stat{
-      border-color:#bfdbfe;
-      background:#ffffff;
-    }
-
-    .source-theme .stat{
-      border-color:#fecaca;
-      background:#ffffff;
-    }
-
     .stat-title{
       font-size:.9rem;
       color:var(--sub);
@@ -265,10 +176,6 @@
       padding:10px;
     }
 
-    .observer-theme .chart-wrap{
-      border-color:#bfdbfe;
-    }
-
     canvas{
       width:100%;
       height:320px;
@@ -288,11 +195,6 @@
       overflow:auto;
       max-height:220px;
       line-height:1.45;
-    }
-
-    .observer-theme .log{
-      border-color:#bfdbfe;
-      background:#ffffff;
     }
 
     .hint{
@@ -333,7 +235,6 @@
       <button class="tab-btn source" id="sourceTabBtn" type="button">音源モード</button>
     </div>
 
-    <!-- 観測者モード -->
     <div class="tab-panel observer-theme active" id="observerPanel">
       <div class="card">
         <div class="section-title">計測設定</div>
@@ -356,7 +257,7 @@
 
           <div class="field">
             <label for="searchWidthInput">探索幅 ± [Hz]</label>
-            <input id="searchWidthInput" type="number" min="20" max="1000" step="10" value="200">
+            <input id="searchWidthInput" type="number" min="20" max="1000" step="10" value="120">
           </div>
         </div>
 
@@ -369,8 +270,7 @@
 
         <div class="status" id="status">状態: 未開始</div>
         <div class="hint">
-          カウントダウン後に測定を開始します。出力は t_s, freq_hz, df_hz の3列TSVです。<br>
-          グラフは散布図表示，周波数推定は少し滑らかになるよう調整しています。
+          信号が弱いときは記録しません。出力は t_s, freq_hz, df_hz の3列TSVです。
         </div>
       </div>
 
@@ -388,14 +288,14 @@
             <div class="stat-value" id="freqView">-- Hz</div>
           </div>
           <div class="stat">
-            <div class="stat-title">周波数差 Δf = f - f0</div>
+            <div class="stat-title">周波数差 Δf</div>
             <div class="stat-value" id="dfView">-- Hz</div>
           </div>
         </div>
       </div>
 
       <div class="card">
-        <div class="section-title">F-t グラフ</div>
+        <div class="section-title">Δf-t グラフ</div>
         <div class="chart-wrap">
           <canvas id="chart" width="920" height="320"></canvas>
         </div>
@@ -407,7 +307,6 @@
       </div>
     </div>
 
-    <!-- 音源モード -->
     <div class="tab-panel source-theme" id="sourcePanel">
       <div class="card">
         <div class="section-title">音源設定</div>
@@ -430,33 +329,14 @@
         </div>
 
         <div class="status" id="sourceStatus">状態: 停止中</div>
-        <div class="hint">
-          サイン波を出力します。音源モードは赤系表示です。<br>
-          大きすぎる音は避けてください。
-        </div>
-      </div>
-
-      <div class="card">
-        <div class="section-title">現在の出力</div>
-        <div class="stats">
-          <div class="stat">
-            <div class="stat-title">周波数</div>
-            <div class="stat-value" id="sourceFreqView">1200 Hz</div>
-          </div>
-          <div class="stat">
-            <div class="stat-title">状態</div>
-            <div class="stat-value" id="sourceStateView">OFF</div>
-          </div>
-        </div>
       </div>
     </div>
   </div>
 
   <script>
-    const SAMPLE_INTERVAL_MS = 100;
+    const SAMPLE_INTERVAL_MS = 120;
 
     const nextInfoEl = document.getElementById("nextInfo");
-
     const observerTabBtn = document.getElementById("observerTabBtn");
     const sourceTabBtn = document.getElementById("sourceTabBtn");
     const observerPanel = document.getElementById("observerPanel");
@@ -482,19 +362,16 @@
     const sourceStartBtn = document.getElementById("sourceStartBtn");
     const sourceStopBtn = document.getElementById("sourceStopBtn");
     const sourceStatus = document.getElementById("sourceStatus");
-    const sourceFreqView = document.getElementById("sourceFreqView");
-    const sourceStateView = document.getElementById("sourceStateView");
 
     const canvas = document.getElementById("chart");
     const g = canvas.getContext("2d");
 
     let activeTab = "observer";
-
     let audioContext = null;
     let analyser = null;
     let freqData = null;
-    let micStream = null;
     let sampleRate = 48000;
+    let micStream = null;
 
     let observerReady = false;
     let countdownRunning = false;
@@ -514,12 +391,10 @@
 
     function switchTab(tabName) {
       activeTab = tabName;
-
       observerTabBtn.classList.toggle("active", tabName === "observer");
       sourceTabBtn.classList.toggle("active", tabName === "source");
       observerPanel.classList.toggle("active", tabName === "observer");
       sourcePanel.classList.toggle("active", tabName === "source");
-
       updateTopInfo();
     }
 
@@ -536,11 +411,7 @@
           nextInfoEl.textContent = "観測者モード: マイクを開始してください";
         }
       } else {
-        if (toneRunning) {
-          nextInfoEl.textContent = `音源モード: ${Number(sourceFreqInput.value).toFixed(0)} Hz 出力中`;
-        } else {
-          nextInfoEl.textContent = "音源モード: 停止中";
-        }
+        nextInfoEl.textContent = toneRunning ? "音源モード: 出力中" : "音源モード: 停止中";
       }
     }
 
@@ -586,8 +457,10 @@
 
       const source = audioContext.createMediaStreamSource(micStream);
       analyser = audioContext.createAnalyser();
-      analyser.fftSize = 16384;
-      analyser.smoothingTimeConstant = 0.15;
+      analyser.fftSize = 32768;
+      analyser.smoothingTimeConstant = 0.03;
+      analyser.minDecibels = -100;
+      analyser.maxDecibels = -10;
 
       source.connect(analyser);
       freqData = new Float32Array(analyser.frequencyBinCount);
@@ -601,7 +474,7 @@
     }
 
     function detectFrequencyNearF0(f0, halfWidthHz) {
-      if (!analyser || !freqData) return f0;
+      if (!analyser || !freqData) return null;
 
       analyser.getFloatFrequencyData(freqData);
 
@@ -622,6 +495,10 @@
         }
       }
 
+      if (maxDb < -65) {
+        return null;
+      }
+
       const y1 = freqData[maxIndex - 1];
       const y2 = freqData[maxIndex];
       const y3 = freqData[maxIndex + 1];
@@ -632,28 +509,17 @@
         delta = 0.5 * (y1 - y3) / denom;
       }
 
-      const refinedBin = maxIndex + delta;
-      const refinedFreq = refinedBin * hzPerBin;
-
-      if (maxDb < -80) {
-        return lastValidFreq ?? f0;
-      }
+      const refinedFreq = (maxIndex + delta) * hzPerBin;
 
       freqHistory.push(refinedFreq);
-      if (freqHistory.length > 5) freqHistory.shift();
+      if (freqHistory.length > 9) freqHistory.shift();
 
-      let result;
-      if (freqHistory.length >= 3) {
-        result = median(freqHistory);
-      } else {
-        result = refinedFreq;
-      }
-
+      const result = freqHistory.length >= 5 ? median(freqHistory) : refinedFreq;
       lastValidFreq = result;
       return result;
     }
 
-    function drawChart(data, color = "#60a5fa", yLabel = "Hz", title = "F-t") {
+    function drawChart(data, color = "#2563eb", yLabel = "Hz", title = "Δf-t") {
       g.clearRect(0, 0, canvas.width, canvas.height);
 
       const W = canvas.width;
@@ -709,7 +575,7 @@
         ymax += 1;
         ymin -= 1;
       } else {
-        const padY = 0.08 * (ymax - ymin);
+        const padY = 0.12 * (ymax - ymin);
         ymax += padY;
         ymin -= padY;
       }
@@ -717,11 +583,20 @@
       g.fillText(`${ymax.toFixed(1)} ${yLabel}`, 8, top + 14);
       g.fillText(`${ymin.toFixed(1)} ${yLabel}`, 8, top + plotH);
 
+      const yZero = top + plotH * (1 - (0 - ymin) / (ymax - ymin));
+      if (yZero >= top && yZero <= top + plotH) {
+        g.strokeStyle = "#9ca3af";
+        g.lineWidth = 1.5;
+        g.beginPath();
+        g.moveTo(left, yZero);
+        g.lineTo(left + plotW, yZero);
+        g.stroke();
+      }
+
       g.fillStyle = color;
       data.forEach((p) => {
         const x = left + plotW * (p.t - xmin) / (xmax - xmin);
         const y = top + plotH * (1 - (p.y - ymin) / (ymax - ymin));
-
         g.beginPath();
         g.arc(x, y, 3.2, 0, Math.PI * 2);
         g.fill();
@@ -730,9 +605,7 @@
 
     function buildTSV() {
       let tsv = "t_s\tfreq_hz\tdf_hz\n";
-      tsv += logs.map(r =>
-        `${r.t_s.toFixed(2)}\t${r.freq_hz.toFixed(3)}\t${r.df_hz.toFixed(3)}`
-      ).join("\n");
+      tsv += logs.map(r => `${r.t_s.toFixed(2)}\t${r.freq_hz.toFixed(3)}\t${r.df_hz.toFixed(3)}`).join("\n");
       return tsv;
     }
 
@@ -754,14 +627,11 @@
 
     function reserveMeasurement() {
       if (!analyser) return;
-
       const countdownSec = Number(countdownSecInput.value);
       targetStartEpochMs = Date.now() + countdownSec * 1000;
       measureDurationMs = Number(durationSecEl.value) * 1000;
-
       countdownRunning = true;
       measuring = false;
-
       statusEl.textContent = `状態: ${countdownSec}秒カウントダウン開始`;
       stopBtn.disabled = false;
       copyBtn.disabled = true;
@@ -777,7 +647,7 @@
       lastValidFreq = null;
       lastSampleMs = targetStartEpochMs;
       statusEl.textContent = "状態: 測定中";
-      drawChart([], "#60a5fa", "Hz", "F-t");
+      drawChart([], "#2563eb", "Hz", "Δf-t");
       updateStatusDisplays();
     }
 
@@ -821,8 +691,6 @@
 
       toneRunning = true;
       sourceStatus.textContent = `状態: ${freq.toFixed(0)} Hz を出力中`;
-      sourceFreqView.textContent = `${freq.toFixed(0)} Hz`;
-      sourceStateView.textContent = "ON";
       sourceStartBtn.disabled = true;
       sourceStopBtn.disabled = false;
       updateStatusDisplays();
@@ -838,10 +706,8 @@
         try { toneGain.disconnect(); } catch(e) {}
         toneGain = null;
       }
-
       toneRunning = false;
       sourceStatus.textContent = "状態: 停止中";
-      sourceStateView.textContent = "OFF";
       sourceStartBtn.disabled = false;
       sourceStopBtn.disabled = true;
       updateStatusDisplays();
@@ -865,6 +731,9 @@
 
         const f = detectFrequencyNearF0(f0, halfWidthHz);
         const t = (lastSampleMs - targetStartEpochMs) / 1000;
+
+        if (f === null) continue;
+
         const df = f - f0;
 
         freqView.textContent = `${f.toFixed(2)} Hz`;
@@ -876,11 +745,11 @@
           df_hz: df
         });
 
-        curve.push({ t, y: f });
+        curve.push({ t, y: df });
         if (curve.length > 600) curve.shift();
       }
 
-      drawChart(curve, "#60a5fa", "Hz", "F-t");
+      drawChart(curve, "#2563eb", "Hz", "Δf-t");
 
       if (nowMs - targetStartEpochMs >= measureDurationMs) {
         stopMeasurement();
@@ -921,26 +790,8 @@
 
     sourceStopBtn.addEventListener("click", stopTone);
 
-    sourceFreqInput.addEventListener("input", () => {
-      const freq = Number(sourceFreqInput.value);
-      sourceFreqView.textContent = `${freq.toFixed(0)} Hz`;
-
-      if (toneRunning && toneOsc && audioContext) {
-        toneOsc.frequency.setValueAtTime(freq, audioContext.currentTime);
-        sourceStatus.textContent = `状態: ${freq.toFixed(0)} Hz を出力中`;
-        updateStatusDisplays();
-      }
-    });
-
-    sourceGainInput.addEventListener("input", () => {
-      const gainVal = Number(sourceGainInput.value);
-      if (toneRunning && toneGain && audioContext) {
-        toneGain.gain.setValueAtTime(gainVal, audioContext.currentTime);
-      }
-    });
-
     setInterval(updateStatusDisplays, 200);
-    drawChart([], "#60a5fa", "Hz", "F-t");
+    drawChart([], "#2563eb", "Hz", "Δf-t");
     updateStatusDisplays();
     loop();
   </script>
