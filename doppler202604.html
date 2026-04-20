@@ -91,8 +91,13 @@
       color:#fff;
     }
 
-    .tab-panel{ display:none; }
-    .tab-panel.active{ display:block; }
+    .tab-panel{
+      display:none;
+    }
+
+    .tab-panel.active{
+      display:block;
+    }
 
     .card{
       background:var(--panel);
@@ -119,8 +124,13 @@
       margin-bottom:14px;
     }
 
-    .observer-theme .section-title{ color:#1d4ed8; }
-    .source-theme .section-title{ color:#dc2626; }
+    .observer-theme .section-title{
+      color:#1d4ed8;
+    }
+
+    .source-theme .section-title{
+      color:#dc2626;
+    }
 
     .controls{
       display:grid;
@@ -197,7 +207,7 @@
 
     .stats{
       display:grid;
-      grid-template-columns:repeat(3,minmax(0,1fr));
+      grid-template-columns:repeat(4,minmax(0,1fr));
       gap:14px;
     }
 
@@ -216,7 +226,7 @@
     }
 
     .stat-value{
-      font-size:2rem;
+      font-size:1.7rem;
       line-height:1.1;
       font-weight:800;
       word-break:break-word;
@@ -273,7 +283,7 @@
       .controls,.stats{grid-template-columns:1fr}
       canvas{height:280px}
       .tabs{flex-direction:column}
-      .stat-value{font-size:1.8rem}
+      .stat-value{font-size:1.5rem}
     }
   </style>
 </head>
@@ -323,8 +333,9 @@
 
         <div class="status" id="status">状態: 未開始</div>
         <div class="hint">
-          毎時刻できるだけ1点残す方針です。<br>
-          出力は t_s, freq_hz, df_hz, peak_db の4列TSVです。
+          毎回FFTを更新して判定します。<br>
+          信号が十分に見えないときは、周波数を出さず欠測にします。<br>
+          出力は t_s, freq_hz, df_hz, peak_db, floor_db, prominence_db の6列TSVです。
         </div>
       </div>
 
@@ -349,11 +360,15 @@
             <div class="stat-title">ピーク強度</div>
             <div class="stat-value" id="dbView">-- dB</div>
           </div>
+          <div class="stat">
+            <div class="stat-title">突出度</div>
+            <div class="stat-value" id="promView">-- dB</div>
+          </div>
         </div>
       </div>
 
       <div class="card">
-        <div class="section-title">Δf-t グラフ</div>
+        <div class="section-title">Δf-t グラフ（有効点のみ）</div>
         <div class="chart-wrap">
           <canvas id="chart" width="920" height="320"></canvas>
         </div>
@@ -415,8 +430,7 @@
   <script>
     const SAMPLE_INTERVAL_MS = 100;
     const FFT_SIZE = 16384;
-    const SMOOTH_ALPHA = 0.35;
-    const MAX_CATCHUP_SAMPLES_PER_FRAME = 4;
+    const PROMINENCE_THRESHOLD_DB = 8.0;
 
     const nextInfoEl = document.getElementById("nextInfo");
 
@@ -437,6 +451,7 @@
     const freqView = document.getElementById("freqView");
     const dfView = document.getElementById("dfView");
     const dbView = document.getElementById("dbView");
+    const promView = document.getElementById("promView");
     const logView = document.getElementById("logView");
     const countdownView = document.getElementById("countdownView");
     const countdownSub = document.getElementById("countdownSub");
@@ -465,8 +480,8 @@
     let countdownRunning = false;
     let measuring = false;
     let targetStartEpochMs = 0;
+    let lastSampleMs = 0;
     let measureDurationMs = 5000;
-    let nextSampleEpochMs = 0;
 
     let logs = [];
     let curve = [];
@@ -474,10 +489,6 @@
     let toneOsc = null;
     let toneGain = null;
     let toneRunning = false;
-
-    let smoothedFreq = null;
-    let lastDetectedFreq = null;
-    let lastPeakDb = -999;
 
     function switchTab(tabName) {
       activeTab = tabName;
@@ -527,6 +538,17 @@
       }
     }
 
+    function median(arr) {
+      if (arr.length === 0) return NaN;
+      const s = [...arr].sort((a, b) => a - b);
+      const n = s.length;
+      return n % 2 === 1 ? s[(n - 1) / 2] : 0.5 * (s[n / 2 - 1] + s[n / 2]);
+    }
+
+    function fmt(v, digits = 3) {
+      return Number.isFinite(v) ? v.toFixed(digits) : "";
+    }
+
     async function ensureAudioContext() {
       if (!audioContext) {
         audioContext = new (window.AudioContext || window.webkitAudioContext)();
@@ -564,13 +586,15 @@
       updateStatusDisplays();
     }
 
-    function dbToLinear(db) {
-      return Math.pow(10, db / 20);
-    }
-
     function detectFrequencyNearF0(f0, halfWidthHz) {
       if (!analyser || !freqData) {
-        return { freq: f0, peakDb: -999 };
+        return {
+          valid: false,
+          freq: NaN,
+          peakDb: NaN,
+          floorDb: NaN,
+          prominenceDb: NaN
+        };
       }
 
       analyser.getFloatFrequencyData(freqData);
@@ -584,52 +608,40 @@
 
       let maxDb = -Infinity;
       let maxIndex = startBin;
+      const band = [];
 
       for (let i = startBin; i <= endBin; i++) {
-        if (freqData[i] > maxDb) {
-          maxDb = freqData[i];
+        const v = freqData[i];
+        band.push(v);
+        if (v > maxDb) {
+          maxDb = v;
           maxIndex = i;
         }
       }
 
-      let weightedSum = 0;
-      let weightTotal = 0;
-      for (let k = -2; k <= 2; k++) {
-        const idx = maxIndex + k;
-        const amp = dbToLinear(freqData[idx]);
-        weightedSum += amp * idx;
-        weightTotal += amp;
-      }
+      const floorDb = median(band);
+      const prominenceDb = maxDb - floorDb;
 
-      let centerBin = weightTotal > 0 ? weightedSum / weightTotal : maxIndex;
+      const y1 = freqData[maxIndex - 1];
+      const y2 = freqData[maxIndex];
+      const y3 = freqData[maxIndex + 1];
 
-      const base = Math.max(2, Math.min(freqData.length - 3, Math.round(centerBin)));
-      const y1 = freqData[base - 1];
-      const y2 = freqData[base];
-      const y3 = freqData[base + 1];
-
+      let delta = 0;
       const denom = y1 - 2 * y2 + y3;
       if (Math.abs(denom) > 1e-12) {
-        const delta = 0.5 * (y1 - y3) / denom;
-        centerBin += Math.max(-0.5, Math.min(0.5, delta));
+        delta = 0.5 * (y1 - y3) / denom;
+        delta = Math.max(-0.5, Math.min(0.5, delta));
       }
 
-      let rawFreq = centerBin * hzPerBin;
-
-      if (!Number.isFinite(rawFreq)) rawFreq = f0;
-
-      if (smoothedFreq == null) {
-        smoothedFreq = rawFreq;
-      } else {
-        smoothedFreq = SMOOTH_ALPHA * rawFreq + (1 - SMOOTH_ALPHA) * smoothedFreq;
-      }
-
-      lastDetectedFreq = smoothedFreq;
-      lastPeakDb = maxDb;
+      const freq = (maxIndex + delta) * hzPerBin;
+      const valid = Number.isFinite(prominenceDb) && prominenceDb >= PROMINENCE_THRESHOLD_DB;
 
       return {
-        freq: smoothedFreq,
-        peakDb: maxDb
+        valid,
+        freq: valid ? freq : NaN,
+        peakDb: maxDb,
+        floorDb,
+        prominenceDb
       };
     }
 
@@ -721,9 +733,9 @@
     }
 
     function buildTSV() {
-      let tsv = "t_s\tfreq_hz\tdf_hz\tpeak_db\n";
+      let tsv = "t_s\tfreq_hz\tdf_hz\tpeak_db\tfloor_db\tprominence_db\n";
       tsv += logs.map(r =>
-        `${r.t_s.toFixed(2)}\t${r.freq_hz.toFixed(3)}\t${r.df_hz.toFixed(3)}\t${r.peak_db.toFixed(2)}`
+        `${fmt(r.t_s,2)}\t${fmt(r.freq_hz,3)}\t${fmt(r.df_hz,3)}\t${fmt(r.peak_db,2)}\t${fmt(r.floor_db,2)}\t${fmt(r.prominence_db,2)}`
       ).join("\n");
       return tsv;
     }
@@ -765,35 +777,37 @@
       countdownRunning = false;
       logs = [];
       curve = [];
-      smoothedFreq = null;
-      lastDetectedFreq = Number(f0Input.value);
-      lastPeakDb = -999;
-      nextSampleEpochMs = targetStartEpochMs;
+      lastSampleMs = targetStartEpochMs;
       statusEl.textContent = "状態: 測定中";
       drawChart([], "#2563eb", "Hz", "Δf-t");
       updateStatusDisplays();
     }
 
-    function recordSample(sampleEpochMs, measuredFreq, peakDb) {
-      const f0 = Number(f0Input.value);
-      const f = Number.isFinite(measuredFreq) ? measuredFreq : (lastDetectedFreq ?? f0);
-      const db = Number.isFinite(peakDb) ? peakDb : lastPeakDb;
-      const t = (sampleEpochMs - targetStartEpochMs) / 1000;
-      const df = f - f0;
-
-      freqView.textContent = `${f.toFixed(2)} Hz`;
-      dfView.textContent = `${df.toFixed(2)} Hz`;
-      dbView.textContent = `${db.toFixed(1)} dB`;
+    function appendLogLine(result, t, f0) {
+      const df = result.valid ? (result.freq - f0) : NaN;
 
       logs.push({
         t_s: t,
-        freq_hz: f,
+        freq_hz: result.freq,
         df_hz: df,
-        peak_db: db
+        peak_db: result.peakDb,
+        floor_db: result.floorDb,
+        prominence_db: result.prominenceDb
       });
 
-      curve.push({ t, y: df });
-      if (curve.length > 600) curve.shift();
+      if (result.valid) {
+        curve.push({ t, y: df });
+        if (curve.length > 600) curve.shift();
+
+        freqView.textContent = `${result.freq.toFixed(2)} Hz`;
+        dfView.textContent = `${df.toFixed(2)} Hz`;
+      } else {
+        freqView.textContent = "-- Hz";
+        dfView.textContent = "-- Hz";
+      }
+
+      dbView.textContent = Number.isFinite(result.peakDb) ? `${result.peakDb.toFixed(1)} dB` : "-- dB";
+      promView.textContent = Number.isFinite(result.prominenceDb) ? `${result.prominenceDb.toFixed(1)} dB` : "-- dB";
     }
 
     function stopMeasurement() {
@@ -805,7 +819,7 @@
 
       if (logs.length > 0) {
         logView.textContent = logs.slice(0, 25).map(r =>
-          `${r.t_s.toFixed(2)}\t${r.freq_hz.toFixed(2)}\t${r.df_hz.toFixed(2)}\t${r.peak_db.toFixed(1)}`
+          `${fmt(r.t_s,2)}\t${fmt(r.freq_hz,2)}\t${fmt(r.df_hz,2)}\t${fmt(r.peak_db,1)}\t${fmt(r.floor_db,1)}\t${fmt(r.prominence_db,1)}`
         ).join("\n");
       } else {
         logView.textContent = "まだデータはありません。";
@@ -814,6 +828,7 @@
       freqView.textContent = "-- Hz";
       dfView.textContent = "-- Hz";
       dbView.textContent = "-- dB";
+      promView.textContent = "-- dB";
       updateStatusDisplays();
     }
 
@@ -874,17 +889,16 @@
       if (!measuring || !analyser) return;
 
       const nowMs = Date.now();
+      const f0 = Number(f0Input.value);
+      const halfWidthHz = Number(searchWidthInput.value);
 
-      let catchupCount = 0;
-      while (nowMs >= nextSampleEpochMs && catchupCount < MAX_CATCHUP_SAMPLES_PER_FRAME) {
-        const result = detectFrequencyNearF0(Number(f0Input.value), Number(searchWidthInput.value));
-        recordSample(nextSampleEpochMs, result.freq, result.peakDb);
-        nextSampleEpochMs += SAMPLE_INTERVAL_MS;
-        catchupCount++;
-      }
+      while (nowMs - lastSampleMs >= SAMPLE_INTERVAL_MS) {
+        lastSampleMs += SAMPLE_INTERVAL_MS;
 
-      if (nowMs - nextSampleEpochMs > SAMPLE_INTERVAL_MS * 8) {
-        nextSampleEpochMs = nowMs;
+        const result = detectFrequencyNearF0(f0, halfWidthHz);
+        const t = (lastSampleMs - targetStartEpochMs) / 1000;
+
+        appendLogLine(result, t, f0);
       }
 
       drawChart(curve, "#2563eb", "Hz", "Δf-t");
