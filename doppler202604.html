@@ -323,7 +323,7 @@
 
         <div class="status" id="status">状態: 未開始</div>
         <div class="hint">
-          FFTの窓長とサンプリング処理を見直し，重複記録を減らしています。<br>
+          毎時刻できるだけ1点残す方針です。<br>
           出力は t_s, freq_hz, df_hz, peak_db の4列TSVです。
         </div>
       </div>
@@ -415,8 +415,8 @@
   <script>
     const SAMPLE_INTERVAL_MS = 100;
     const FFT_SIZE = 16384;
-    const PEAK_THRESHOLD_DB = -92;
     const SMOOTH_ALPHA = 0.35;
+    const MAX_CATCHUP_SAMPLES_PER_FRAME = 4;
 
     const nextInfoEl = document.getElementById("nextInfo");
 
@@ -476,6 +476,7 @@
     let toneRunning = false;
 
     let smoothedFreq = null;
+    let lastDetectedFreq = null;
     let lastPeakDb = -999;
 
     function switchTab(tabName) {
@@ -569,7 +570,7 @@
 
     function detectFrequencyNearF0(f0, halfWidthHz) {
       if (!analyser || !freqData) {
-        return { freq: f0, peakDb: -999, valid: false };
+        return { freq: f0, peakDb: -999 };
       }
 
       analyser.getFloatFrequencyData(freqData);
@@ -591,28 +592,21 @@
         }
       }
 
-      if (maxDb < PEAK_THRESHOLD_DB) {
-        return {
-          freq: smoothedFreq ?? f0,
-          peakDb: maxDb,
-          valid: false
-        };
-      }
-
-      let num = 0;
-      let den = 0;
+      let weightedSum = 0;
+      let weightTotal = 0;
       for (let k = -2; k <= 2; k++) {
         const idx = maxIndex + k;
         const amp = dbToLinear(freqData[idx]);
-        num += amp * idx;
-        den += amp;
+        weightedSum += amp * idx;
+        weightTotal += amp;
       }
 
-      let centerBin = den > 0 ? num / den : maxIndex;
+      let centerBin = weightTotal > 0 ? weightedSum / weightTotal : maxIndex;
 
-      const y1 = dbToLinear(freqData[Math.floor(centerBin) - 1] || freqData[maxIndex - 1]);
-      const y2 = dbToLinear(freqData[Math.floor(centerBin)] || freqData[maxIndex]);
-      const y3 = dbToLinear(freqData[Math.floor(centerBin) + 1] || freqData[maxIndex + 1]);
+      const base = Math.max(2, Math.min(freqData.length - 3, Math.round(centerBin)));
+      const y1 = freqData[base - 1];
+      const y2 = freqData[base];
+      const y3 = freqData[base + 1];
 
       const denom = y1 - 2 * y2 + y3;
       if (Math.abs(denom) > 1e-12) {
@@ -620,7 +614,9 @@
         centerBin += Math.max(-0.5, Math.min(0.5, delta));
       }
 
-      const rawFreq = centerBin * hzPerBin;
+      let rawFreq = centerBin * hzPerBin;
+
+      if (!Number.isFinite(rawFreq)) rawFreq = f0;
 
       if (smoothedFreq == null) {
         smoothedFreq = rawFreq;
@@ -628,12 +624,12 @@
         smoothedFreq = SMOOTH_ALPHA * rawFreq + (1 - SMOOTH_ALPHA) * smoothedFreq;
       }
 
+      lastDetectedFreq = smoothedFreq;
       lastPeakDb = maxDb;
 
       return {
         freq: smoothedFreq,
-        peakDb: maxDb,
-        valid: true
+        peakDb: maxDb
       };
     }
 
@@ -770,36 +766,30 @@
       logs = [];
       curve = [];
       smoothedFreq = null;
+      lastDetectedFreq = Number(f0Input.value);
       lastPeakDb = -999;
-      nextSampleEpochMs = Date.now();
+      nextSampleEpochMs = targetStartEpochMs;
       statusEl.textContent = "状態: 測定中";
       drawChart([], "#2563eb", "Hz", "Δf-t");
       updateStatusDisplays();
     }
 
-    function takeOneSample(nowMs) {
+    function recordSample(sampleEpochMs, measuredFreq, peakDb) {
       const f0 = Number(f0Input.value);
-      const halfWidthHz = Number(searchWidthInput.value);
-      const result = detectFrequencyNearF0(f0, halfWidthHz);
-
-      if (!result.valid) {
-        return;
-      }
-
-      const t = (nowMs - targetStartEpochMs) / 1000;
-      const f = result.freq;
-      const peakDb = result.peakDb;
+      const f = Number.isFinite(measuredFreq) ? measuredFreq : (lastDetectedFreq ?? f0);
+      const db = Number.isFinite(peakDb) ? peakDb : lastPeakDb;
+      const t = (sampleEpochMs - targetStartEpochMs) / 1000;
       const df = f - f0;
 
       freqView.textContent = `${f.toFixed(2)} Hz`;
       dfView.textContent = `${df.toFixed(2)} Hz`;
-      dbView.textContent = `${peakDb.toFixed(1)} dB`;
+      dbView.textContent = `${db.toFixed(1)} dB`;
 
       logs.push({
         t_s: t,
         freq_hz: f,
         df_hz: df,
-        peak_db: peakDb
+        peak_db: db
       });
 
       curve.push({ t, y: df });
@@ -885,13 +875,16 @@
 
       const nowMs = Date.now();
 
-      if (nowMs >= nextSampleEpochMs) {
-        takeOneSample(nowMs);
+      let catchupCount = 0;
+      while (nowMs >= nextSampleEpochMs && catchupCount < MAX_CATCHUP_SAMPLES_PER_FRAME) {
+        const result = detectFrequencyNearF0(Number(f0Input.value), Number(searchWidthInput.value));
+        recordSample(nextSampleEpochMs, result.freq, result.peakDb);
         nextSampleEpochMs += SAMPLE_INTERVAL_MS;
+        catchupCount++;
+      }
 
-        if (nowMs - nextSampleEpochMs > SAMPLE_INTERVAL_MS * 3) {
-          nextSampleEpochMs = nowMs + SAMPLE_INTERVAL_MS;
-        }
+      if (nowMs - nextSampleEpochMs > SAMPLE_INTERVAL_MS * 8) {
+        nextSampleEpochMs = nowMs;
       }
 
       drawChart(curve, "#2563eb", "Hz", "Δf-t");
