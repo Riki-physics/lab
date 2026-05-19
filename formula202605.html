@@ -1,402 +1,407 @@
-<!DOCTYPE html>
+html = r'''<!DOCTYPE html>
 <html lang="ja">
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>物理公式クイズ（TeX版）</title>
+<title>物理公式クイズ TeX修正版</title>
 
 <script>
-  window.MathJax = {
-    tex: { inlineMath: [['\\(','\\)'], ['$', '$']] },
-    options: { skipHtmlTags: ['script', 'noscript', 'style', 'textarea', 'pre'] }
-  };
+window.MathJax = {
+  tex: {
+    inlineMath: [['\\(', '\\)']],
+    displayMath: [['\\[', '\\]']],
+    processEscapes: true
+  },
+  startup: {
+    typeset: false
+  },
+  options: {
+    skipHtmlTags: ['script', 'noscript', 'style', 'textarea', 'pre', 'code']
+  }
+};
 </script>
 <script defer src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
 
 <style>
-  :root{
-    --bg1:#0f172a;
-    --bg2:#111827;
-    --panel:#ffffff;
-    --muted:#64748b;
-    --ink:#0f172a;
-    --line:#e2e8f0;
-    --accent:#2563eb;
-    --accent2:#7c3aed;
-    --ok:#16a34a;
-    --ng:#dc2626;
-    --soft:#f8fafc;
-  }
-  *{box-sizing:border-box}
-  body{
-    margin:0;
-    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Hiragino Sans","Yu Gothic",sans-serif;
-    color:var(--ink);
-    background:
-      radial-gradient(circle at top right, rgba(124,58,237,.16), transparent 28%),
-      radial-gradient(circle at top left, rgba(37,99,235,.16), transparent 30%),
-      linear-gradient(180deg, #f8fbff 0%, #eef4ff 100%);
-  }
-  .hero{
-    background:linear-gradient(135deg, var(--bg1), var(--bg2));
-    color:#fff;
-    padding:28px 18px 22px;
-    box-shadow:0 10px 30px rgba(15,23,42,.18);
-  }
-  .hero-inner{
-    max-width:1150px;
-    margin:0 auto;
-  }
-  h1{
-    margin:0 0 8px;
-    font-size:clamp(26px,4.5vw,44px);
-    letter-spacing:.02em;
-  }
-  .lead{
-    margin:0;
-    color:#dbeafe;
-    line-height:1.7;
-    font-size:15px;
-  }
-
-  main{
-    max-width:1150px;
-    margin:18px auto 32px;
-    padding:0 16px;
-  }
-  .layout{
-    display:grid;
-    gap:16px;
-    grid-template-columns: 340px 1fr;
-    align-items:start;
-  }
-  @media (max-width: 920px){
-    .layout{grid-template-columns:1fr}
-  }
-
-  .panel{
-    background:rgba(255,255,255,.95);
-    backdrop-filter: blur(8px);
-    border:1px solid rgba(255,255,255,.8);
-    border-radius:24px;
-    box-shadow:0 12px 32px rgba(15,23,42,.08);
-    overflow:hidden;
-  }
-  .panel-body{
-    padding:18px;
-  }
-  .title{
-    margin:0 0 12px;
-    font-size:18px;
-    font-weight:800;
-  }
-  label{
-    display:block;
-    font-size:13px;
-    font-weight:700;
-    color:var(--muted);
-    margin:10px 0 6px;
-  }
-  select, button{
-    font:inherit;
-  }
-  select{
-    width:100%;
-    padding:12px 14px;
-    border-radius:14px;
-    border:1px solid var(--line);
-    background:#fff;
-  }
-  .btnrow{
-    display:flex;
-    gap:10px;
-    flex-wrap:wrap;
-    margin-top:14px;
-  }
-  button{
-    border:0;
-    padding:12px 16px;
-    border-radius:14px;
-    font-weight:800;
-    cursor:pointer;
-    transition:.15s transform,.15s opacity,.15s background;
-  }
-  button:hover{opacity:.95}
-  button:active{transform:translateY(1px)}
-  .primary{background:linear-gradient(135deg, var(--accent), var(--accent2)); color:#fff;}
-  .ghost{background:#eef2ff; color:#1e3a8a;}
-  .soft{background:#f1f5f9; color:#0f172a;}
-
-  .stats{
-    display:grid;
-    grid-template-columns:repeat(3,1fr);
-    gap:10px;
-    margin-top:14px;
-  }
-  .stat{
-    background:var(--soft);
-    border:1px solid #edf2f7;
-    border-radius:18px;
-    padding:14px 10px;
-    text-align:center;
-  }
-  .stat b{
-    display:block;
-    font-size:26px;
-    margin-bottom:4px;
-  }
-  .stat span{
-    font-size:12px;
-    color:var(--muted);
-    font-weight:700;
-  }
-
-  .quiz-head{
-    display:flex;
-    justify-content:space-between;
-    gap:12px;
-    align-items:center;
-    flex-wrap:wrap;
-    padding:18px 18px 0;
-  }
-  .badge{
-    display:inline-flex;
-    align-items:center;
-    gap:8px;
-    padding:8px 12px;
-    border-radius:999px;
-    background:#eff6ff;
-    color:#1d4ed8;
-    font-size:13px;
-    font-weight:800;
-  }
-  .qmode{
-    color:var(--muted);
-    font-size:14px;
-    font-weight:700;
-  }
-  .card-quiz{
-    padding:18px;
-  }
-  .question-box{
-    background:
-      radial-gradient(circle at top right, rgba(37,99,235,.06), transparent 25%),
-      linear-gradient(180deg, #ffffff, #f8fbff);
-    border:1px solid #dbeafe;
-    border-radius:24px;
-    padding:22px;
-    min-height:260px;
-  }
-  .prompt{
-    font-size:14px;
-    color:var(--muted);
-    font-weight:800;
-    letter-spacing:.02em;
-  }
-  .big{
-    margin-top:12px;
-    font-size:clamp(24px,4vw,38px);
-    font-weight:900;
-    line-height:1.45;
-  }
-  .sub{
-    margin-top:12px;
-    color:#334155;
-    line-height:1.8;
-    font-size:16px;
-  }
-  .choices{
-    display:grid;
-    gap:12px;
-    margin-top:18px;
-  }
-  .choice{
-    width:100%;
-    text-align:left;
-    background:#fff;
-    border:2px solid #e2e8f0;
-    border-radius:18px;
-    padding:16px 18px;
-    min-height:66px;
-    display:flex;
-    align-items:center;
-    font-size:18px;
-    line-height:1.6;
-  }
-  .choice.correct{
-    background:#ecfdf5;
-    border-color:#22c55e;
-  }
-  .choice.wrong{
-    background:#fef2f2;
-    border-color:#f87171;
-  }
-
-  .answer-box{
-    margin-top:16px;
-    padding:18px;
-    border-radius:20px;
-    background:#f8fafc;
-    border:1px solid #e2e8f0;
-    display:none;
-  }
-  .answer-box.show{display:block}
-  .answer-box h3{
-    margin:0 0 12px;
-    font-size:16px;
-  }
-  .answer-item{
-    margin:8px 0;
-    line-height:1.8;
-  }
-  .mathline{
-    font-size:clamp(26px,4vw,38px);
-    font-weight:800;
-    margin:8px 0 12px;
-  }
-  details{
-    margin-top:16px;
-    border-top:1px solid #e2e8f0;
-  }
-  summary{
-    cursor:pointer;
-    padding:14px 2px 0;
-    font-weight:800;
-  }
-  .formula-list{
-    display:grid;
-    gap:12px;
-    margin-top:14px;
-  }
-  .formula-item{
-    border:1px solid #e2e8f0;
-    border-radius:18px;
-    padding:14px 16px;
-    background:#fff;
-  }
-  .formula-item .unit{
-    font-size:12px;
-    font-weight:800;
-    color:#4338ca;
-    margin-bottom:6px;
-  }
-  .formula-item .name{
-    font-weight:800;
-    margin-bottom:10px;
-  }
-  .formula-item .meaning{
-    margin-top:8px;
-    color:#475569;
-    line-height:1.7;
-  }
-  .formula-item .vars{
-    margin-top:6px;
-    color:#64748b;
-    font-size:13px;
-    line-height:1.7;
-  }
-  .foot{
-    margin-top:16px;
-    color:#64748b;
-    font-size:13px;
-    line-height:1.7;
-  }
+:root{
+  --bg:#eef4ff;
+  --ink:#0f172a;
+  --muted:#64748b;
+  --card:#ffffff;
+  --line:#dbe4f0;
+  --blue:#2563eb;
+  --purple:#7c3aed;
+  --green:#16a34a;
+  --red:#dc2626;
+  --soft:#f8fafc;
+}
+*{box-sizing:border-box}
+body{
+  margin:0;
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Hiragino Sans","Yu Gothic",sans-serif;
+  color:var(--ink);
+  background:
+    radial-gradient(circle at top left, rgba(37,99,235,.18), transparent 28%),
+    radial-gradient(circle at top right, rgba(124,58,237,.16), transparent 28%),
+    linear-gradient(180deg,#f8fbff 0%, var(--bg) 100%);
+}
+header{
+  background:linear-gradient(135deg,#0f172a,#1e1b4b);
+  color:white;
+  padding:26px 18px 22px;
+  box-shadow:0 14px 34px rgba(15,23,42,.2);
+}
+.header-inner{
+  max-width:1180px;
+  margin:0 auto;
+}
+h1{
+  margin:0 0 8px;
+  font-size:clamp(28px,4.5vw,46px);
+  letter-spacing:.02em;
+}
+.lead{
+  margin:0;
+  color:#dbeafe;
+  line-height:1.7;
+  font-size:15px;
+}
+main{
+  max-width:1180px;
+  margin:18px auto 34px;
+  padding:0 16px;
+}
+.layout{
+  display:grid;
+  grid-template-columns:340px 1fr;
+  gap:16px;
+}
+@media(max-width:900px){
+  .layout{grid-template-columns:1fr}
+}
+.panel{
+  background:rgba(255,255,255,.96);
+  border:1px solid rgba(255,255,255,.9);
+  border-radius:24px;
+  box-shadow:0 12px 32px rgba(15,23,42,.08);
+  overflow:hidden;
+}
+.panel-body{padding:18px}
+.title{
+  margin:0 0 12px;
+  font-size:18px;
+  font-weight:900;
+}
+label{
+  display:block;
+  margin:12px 0 6px;
+  color:var(--muted);
+  font-size:13px;
+  font-weight:800;
+}
+select{
+  width:100%;
+  border:1px solid var(--line);
+  border-radius:14px;
+  padding:12px 14px;
+  background:white;
+  font:inherit;
+}
+button{
+  border:0;
+  border-radius:14px;
+  padding:12px 16px;
+  font:inherit;
+  font-weight:900;
+  cursor:pointer;
+  transition:.15s transform,.15s opacity;
+}
+button:hover{opacity:.95}
+button:active{transform:translateY(1px)}
+.btnrow{
+  display:flex;
+  flex-wrap:wrap;
+  gap:10px;
+  margin-top:14px;
+}
+.primary{
+  background:linear-gradient(135deg,var(--blue),var(--purple));
+  color:white;
+}
+.ghost{
+  background:#eef2ff;
+  color:#1e3a8a;
+}
+.soft{
+  background:#f1f5f9;
+  color:#0f172a;
+}
+.stats{
+  display:grid;
+  grid-template-columns:repeat(3,1fr);
+  gap:10px;
+  margin-top:16px;
+}
+.stat{
+  background:#f8fafc;
+  border:1px solid #edf2f7;
+  border-radius:18px;
+  padding:14px 8px;
+  text-align:center;
+}
+.stat b{
+  display:block;
+  font-size:26px;
+}
+.stat span{
+  font-size:12px;
+  color:var(--muted);
+  font-weight:800;
+}
+.quiz-head{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  gap:12px;
+  flex-wrap:wrap;
+  padding:18px 18px 0;
+}
+.badge{
+  display:inline-flex;
+  align-items:center;
+  padding:8px 12px;
+  border-radius:999px;
+  background:#eff6ff;
+  color:#1d4ed8;
+  font-size:13px;
+  font-weight:900;
+}
+.mode-label{
+  color:var(--muted);
+  font-size:14px;
+  font-weight:800;
+}
+.quiz-body{padding:18px}
+.question-box{
+  background:
+    radial-gradient(circle at top right, rgba(37,99,235,.06), transparent 26%),
+    linear-gradient(180deg,#fff,#f8fbff);
+  border:1px solid #dbeafe;
+  border-radius:24px;
+  padding:22px;
+  min-height:310px;
+}
+.prompt{
+  color:var(--muted);
+  font-size:14px;
+  font-weight:900;
+  letter-spacing:.03em;
+}
+.question-main{
+  margin-top:14px;
+  font-size:clamp(25px,4vw,42px);
+  line-height:1.45;
+  font-weight:950;
+}
+.question-main .MathJax{
+  font-size:1.1em !important;
+}
+.sub{
+  margin-top:12px;
+  color:#334155;
+  line-height:1.8;
+  font-size:16px;
+}
+.choices{
+  display:grid;
+  gap:12px;
+  margin-top:20px;
+}
+.choice{
+  width:100%;
+  min-height:68px;
+  display:flex;
+  align-items:center;
+  text-align:left;
+  background:white;
+  border:2px solid #e2e8f0;
+  border-radius:18px;
+  padding:16px 18px;
+  font-size:20px;
+  line-height:1.6;
+}
+.choice .MathJax{
+  font-size:1.2em !important;
+}
+.choice.correct{
+  background:#ecfdf5;
+  border-color:#22c55e;
+}
+.choice.wrong{
+  background:#fef2f2;
+  border-color:#f87171;
+}
+.answer-box{
+  display:none;
+  margin-top:18px;
+  padding:18px;
+  border-radius:20px;
+  background:#f8fafc;
+  border:1px solid #e2e8f0;
+}
+.answer-box.show{display:block}
+.answer-box h3{
+  margin:0 0 12px;
+  font-size:17px;
+}
+.answer-line{
+  margin:9px 0;
+  line-height:1.8;
+}
+.formula-display{
+  margin:8px 0 12px;
+  font-size:clamp(28px,4.2vw,44px);
+  font-weight:900;
+}
+details{
+  margin-top:18px;
+  border-top:1px solid #e2e8f0;
+}
+summary{
+  padding:14px 2px 0;
+  cursor:pointer;
+  font-weight:900;
+}
+.formula-list{
+  display:grid;
+  gap:12px;
+  margin-top:14px;
+}
+.formula-item{
+  border:1px solid #e2e8f0;
+  border-radius:18px;
+  padding:14px 16px;
+  background:white;
+}
+.formula-item .unit{
+  color:#4338ca;
+  font-size:12px;
+  font-weight:900;
+  margin-bottom:6px;
+}
+.formula-item .name{
+  font-weight:900;
+  margin-bottom:8px;
+}
+.formula-item .math{
+  font-size:22px;
+  margin:8px 0;
+}
+.formula-item .meaning{
+  color:#475569;
+  line-height:1.7;
+}
+.formula-item .vars{
+  color:#64748b;
+  font-size:13px;
+  line-height:1.7;
+  margin-top:6px;
+}
+.note{
+  color:#64748b;
+  line-height:1.7;
+  font-size:13px;
+  margin-top:16px;
+}
 </style>
 </head>
 
 <body>
-  <header class="hero">
-    <div class="hero-inner">
-      <h1>物理公式クイズ</h1>
-      <p class="lead">
-        公式を「見る」のではなく，頭から取り出す。しかも数式はTeXで美しく表示。
-        授業冒頭の5分確認にも，定期考査前の反復にも使えるようにしてあります。
-      </p>
-    </div>
-  </header>
+<header>
+  <div class="header-inner">
+    <h1>物理公式クイズ</h1>
+    <p class="lead">公式を「見たことがある」で終わらせず，頭から取り出す練習をするためのクイズです。数式はMathJaxでTeX表示します。</p>
+  </div>
+</header>
 
-  <main>
-    <div class="layout">
-      <aside class="panel">
-        <div class="panel-body">
-          <h2 class="title">出題設定</h2>
+<main>
+  <div class="layout">
+    <aside class="panel">
+      <div class="panel-body">
+        <h2 class="title">出題設定</h2>
 
-          <label for="unitSelect">分野</label>
-          <select id="unitSelect"></select>
+        <label for="unitSelect">分野</label>
+        <select id="unitSelect"></select>
 
-          <label for="modeSelect">出題モード</label>
-          <select id="modeSelect">
-            <option value="name_to_formula">公式名 → 式を選ぶ</option>
-            <option value="formula_to_name">式 → 公式名を選ぶ</option>
-            <option value="meaning_to_formula">意味 → 式を選ぶ</option>
-            <option value="recall">暗記モード（答えを表示）</option>
-          </select>
+        <label for="modeSelect">出題モード</label>
+        <select id="modeSelect">
+          <option value="name_to_formula">公式名 → 式を選ぶ</option>
+          <option value="formula_to_name">式 → 公式名を選ぶ</option>
+          <option value="meaning_to_formula">意味 → 式を選ぶ</option>
+          <option value="recall">暗記モード</option>
+        </select>
 
-          <div class="btnrow">
-            <button class="primary" id="nextBtn">出題する</button>
-            <button class="ghost" id="showBtn">答えを見る</button>
-          </div>
-
-          <div class="stats">
-            <div class="stat"><b id="scoreAll">0</b><span>解いた数</span></div>
-            <div class="stat"><b id="scoreOk">0</b><span>正解</span></div>
-            <div class="stat"><b id="scoreRate">0%</b><span>正答率</span></div>
-          </div>
-
-          <div class="btnrow">
-            <button class="soft" id="resetBtn">記録をリセット</button>
-          </div>
-
-          <p class="foot">
-            使い方のおすすめ：<br>
-            ① 最初は「公式名 → 式を選ぶ」<br>
-            ② 次に「式 → 公式名」<br>
-            ③ 最後に「暗記モード」で，ノートに自力再生
-          </p>
-        </div>
-      </aside>
-
-      <section class="panel">
-        <div class="quiz-head">
-          <div class="badge" id="unitBadge">準備OK</div>
-          <div class="qmode" id="modeLabel">出題モードを選んでください</div>
+        <div class="btnrow">
+          <button class="primary" id="nextBtn">出題する</button>
+          <button class="ghost" id="showBtn">答えを見る</button>
         </div>
 
-        <div class="card-quiz">
-          <div class="question-box">
-            <div class="prompt" id="promptText">スタート前</div>
-            <div class="big" id="questionMain">「出題する」を押してください。</div>
-            <div class="sub" id="questionSub">頭の中でまず思い出してから，選択または答え確認をします。</div>
-
-            <div class="choices" id="choices"></div>
-
-            <div class="answer-box" id="answerBox">
-              <h3>答え</h3>
-              <div class="answer-item"><strong>公式名：</strong><span id="ansName"></span></div>
-              <div class="answer-item"><strong>式：</strong></div>
-              <div class="mathline" id="ansFormula"></div>
-              <div class="answer-item"><strong>意味：</strong><span id="ansMeaning"></span></div>
-              <div class="answer-item"><strong>記号：</strong><span id="ansVars"></span></div>
-            </div>
-          </div>
-
-          <details>
-            <summary>収録公式一覧を見る</summary>
-            <div class="formula-list" id="formulaList"></div>
-          </details>
+        <div class="stats">
+          <div class="stat"><b id="scoreAll">0</b><span>解いた数</span></div>
+          <div class="stat"><b id="scoreOk">0</b><span>正解</span></div>
+          <div class="stat"><b id="scoreRate">0%</b><span>正答率</span></div>
         </div>
-      </section>
-    </div>
-  </main>
 
-<script id="defaultData" type="text/plain">
+        <div class="btnrow">
+          <button class="soft" id="resetBtn">記録をリセット</button>
+        </div>
+
+        <p class="note">
+          ※ 数式表示にはネット接続が必要です。学校でオフライン運用したい場合は，MathJaxを同じフォルダに保存する版にできます。
+        </p>
+      </div>
+    </aside>
+
+    <section class="panel">
+      <div class="quiz-head">
+        <div class="badge" id="unitBadge">準備OK</div>
+        <div class="mode-label" id="modeLabel">出題モードを選んでください</div>
+      </div>
+
+      <div class="quiz-body">
+        <div class="question-box">
+          <div class="prompt" id="promptText">スタート前</div>
+          <div class="question-main" id="questionMain">「出題する」を押してください。</div>
+          <div class="sub" id="questionSub">まず頭の中で思い出してから，選択肢を押します。</div>
+
+          <div class="choices" id="choices"></div>
+
+          <div class="answer-box" id="answerBox">
+            <h3>答え</h3>
+            <div class="answer-line"><strong>公式名：</strong><span id="ansName"></span></div>
+            <div class="answer-line"><strong>式：</strong></div>
+            <div class="formula-display" id="ansFormula"></div>
+            <div class="answer-line"><strong>意味：</strong><span id="ansMeaning"></span></div>
+            <div class="answer-line"><strong>記号：</strong><span id="ansVars"></span></div>
+          </div>
+        </div>
+
+        <details>
+          <summary>収録公式一覧を見る</summary>
+          <div class="formula-list" id="formulaList"></div>
+        </details>
+      </div>
+    </section>
+  </div>
+</main>
+
+<script id="formulaData" type="text/plain">
 分野	公式名	TeX	意味	記号
 運動	平均速度	v=\frac{\Delta x}{\Delta t}	変位を時間で割ると速度になる	v：速度，\Delta x：変位，\Delta t：時間変化
 運動	加速度	a=\frac{\Delta v}{\Delta t}	速度の変化を時間で割ると加速度になる	a：加速度，\Delta v：速度変化，\Delta t：時間変化
 運動	等速直線運動	x=vt	速さが一定のときの変位	x：変位，v：速度，t：時間
 運動	等加速度運動の速度	v=v_0+at	加速度が一定のときの速度	v：速度，v_0：初速度，a：加速度，t：時間
 運動	等加速度運動の変位	x=v_0t+\frac{1}{2}at^2	加速度が一定のときの変位	x：変位，v_0：初速度，a：加速度，t：時間
-運動	等加速度運動の平均速度	x=\frac{v_0+v}{2}t	平均速度で変位を表す式	x：変位，v_0：初速度，v：速度，t：時間
 運動	時間を含まない式	v^2-v_0^2=2ax	時間が分からないときに使う等加速度運動の式	v：速度，v_0：初速度，a：加速度，x：変位
 運動	自由落下の速度	v=gt	静かに落とした物体の速度	v：速度，g：重力加速度，t：時間
 運動	自由落下の距離	y=\frac{1}{2}gt^2	静かに落とした物体の落下距離	y：落下距離，g：重力加速度，t：時間
@@ -417,7 +422,6 @@
 仕事とエネルギー	重力による位置エネルギー	U=mgh	高い位置にある物体がもつエネルギー	U：位置エネルギー，m：質量，g：重力加速度，h：高さ
 仕事とエネルギー	弾性力による位置エネルギー	U=\frac{1}{2}kx^2	ばねがもつ位置エネルギー	U：弾性力による位置エネルギー，k：ばね定数，x：伸び
 仕事とエネルギー	力学的エネルギー	E=K+U	運動エネルギーと位置エネルギーの和	E：力学的エネルギー，K：運動エネルギー，U：位置エネルギー
-仕事とエネルギー	仕事と運動エネルギー	W=\Delta K	仕事は運動エネルギーの変化に等しい	W：仕事，\Delta K：運動エネルギーの変化
 運動量	運動量	p=mv	物体の運動の勢いを表す	p：運動量，m：質量，v：速度
 運動量	力積	I=F\Delta t	力を時間で積み上げた量	I：力積，F：力，\Delta t：時間変化
 運動量	力積と運動量	I=\Delta p	力積は運動量の変化に等しい	I：力積，\Delta p：運動量変化
@@ -427,40 +431,24 @@
 円運動	角速度と振動数	\omega=2\pi f	振動数から角速度を表す	\omega：角速度，f：振動数
 円運動	円運動の速さ	v=r\omega	半径と角速度から速さを求める	v：速さ，r：半径，\omega：角速度
 円運動	向心加速度	a=\frac{v^2}{r}	円運動で中心向きに生じる加速度	a：向心加速度，v：速さ，r：半径
-円運動	向心加速度	a=r\omega^2	角速度で表した向心加速度	a：向心加速度，r：半径，\omega：角速度
 円運動	向心力	F=\frac{mv^2}{r}	円運動を保つための中心向きの力	F：向心力，m：質量，v：速さ，r：半径
-単振動	単振動の変位	x=A\sin \omega t	単振動の位置を表す	x：変位，A：振幅，\omega：角速度，t：時間
-単振動	単振動の速度	v=A\omega\cos \omega t	単振動の速度	v：速度，A：振幅，\omega：角速度，t：時間
+単振動	単振動の変位	x=A\sin\omega t	単振動の位置を表す	x：変位，A：振幅，\omega：角速度，t：時間
 単振動	単振動の加速度	a=-\omega^2x	変位と逆向きの加速度が生じる	a：加速度，\omega：角速度，x：変位
 単振動	ばね振り子の周期	T=2\pi\sqrt{\frac{m}{k}}	ばね振り子の周期	T：周期，m：質量，k：ばね定数
 単振動	単振り子の周期	T=2\pi\sqrt{\frac{\ell}{g}}	小さい振れ角の単振り子の周期	T：周期，\ell：糸の長さ，g：重力加速度
-万有引力	万有引力	F=G\frac{mM}{r^2}	質量をもつ物体どうしにはたらく引力	F：万有引力，G：万有引力定数，m・M：質量，r：距離
-万有引力	重力加速度	g=G\frac{M}{r^2}	天体の重力加速度	g：重力加速度，G：万有引力定数，M：天体の質量，r：中心からの距離
-万有引力	位置エネルギー	U=-G\frac{mM}{r}	万有引力による位置エネルギー	U：位置エネルギー
 熱	熱量	Q=mc\Delta T	物体の温度を変えるための熱量	Q：熱量，m：質量，c：比熱，\Delta T：温度変化
-熱	熱容量	C=mc	物体全体の温まりにくさ	C：熱容量，m：質量，c：比熱
 熱	状態変化の熱量	Q=mL	融解や蒸発などに必要な熱量	Q：熱量，m：質量，L：潜熱
-熱	セルシウス温度と絶対温度	T=t+273	摂氏温度を絶対温度に直す	T：絶対温度，t：摂氏温度
 熱	ボイルの法則	pV=\mathrm{const.}	温度一定なら圧力と体積の積は一定	p：圧力，V：体積
 熱	シャルルの法則	\frac{V}{T}=\mathrm{const.}	圧力一定なら体積は絶対温度に比例する	V：体積，T：絶対温度
-熱	ボイル・シャルルの法則	\frac{pV}{T}=\mathrm{const.}	気体の圧力・体積・温度の関係	p：圧力，V：体積，T：絶対温度
 熱	理想気体の状態方程式	pV=nRT	理想気体の状態を表す式	p：圧力，V：体積，n：物質量，R：気体定数，T：絶対温度
-熱	平均運動エネルギー	\frac{1}{2}m\overline{v^2}=\frac{3}{2}kT	気体分子1個の平均運動エネルギー	m：分子質量，\overline{v^2}：速さの2乗平均，k：ボルツマン定数，T：絶対温度
-熱	単原子分子理想気体の内部エネルギー	U=\frac{3}{2}nRT	単原子分子理想気体の内部エネルギー	U：内部エネルギー，n：物質量，R：気体定数，T：絶対温度
 熱	熱力学第一法則	\Delta U=Q+W	内部エネルギーの変化は熱と仕事で決まる	\Delta U：内部エネルギー変化，Q：加えた熱量，W：外部からされた仕事
 波	波の基本式	v=f\lambda	波の速さは振動数と波長の積	v：波の速さ，f：振動数，\lambda：波長
 波	周期と振動数	f=\frac{1}{T}	1秒あたりの振動回数が振動数	f：振動数，T：周期
 波	角振動数	\omega=2\pi f	1秒あたりの位相変化	\omega：角振動数，f：振動数
 波	正弦波	y=A\sin(\omega t-kx)	右向きに進む正弦波	y：変位，A：振幅，\omega：角振動数，k：波数，x：位置
-波	弦の固有振動数	f=\frac{nv}{2L}	両端固定の弦の固有振動数	f：振動数，n：次数，v：波の速さ，L：長さ
-波	閉管の固有振動数	f=\frac{(2n-1)v}{4L}	閉管の固有振動数	f：振動数，n：次数，v：音速，L：管の長さ
 波	うなり	f_{\mathrm{beat}}=|f_1-f_2|	近い振動数の音を重ねるとうなりが生じる	f_{\mathrm{beat}}：うなりの振動数
-波	ドップラー効果	f'=f\frac{V-v_o}{V-v_s}	観測者と音源の運動で振動数が変わる	f'：観測される振動数，f：音源の振動数，V：音速，v_o：観測者速度，v_s：音源速度
-光	屈折率	n=\frac{c}{v}	真空中の光速と媒質中の光速の比	n：屈折率，c：真空中の光速，v：媒質中の光速
 光	屈折の法則	n_1\sin\theta_1=n_2\sin\theta_2	媒質が変わると光の進む向きが変わる	n：屈折率，\theta：角度
 光	レンズの公式	\frac{1}{a}+\frac{1}{b}=\frac{1}{f}	物体距離，像距離，焦点距離の関係	a：物体距離，b：像距離，f：焦点距離
-光	倍率	m=\frac{b}{a}	像の大きさの倍率	m：倍率，a：物体距離，b：像距離
-光	ヤングの明線条件	d\sin\theta=m\lambda	干渉で強め合う条件	d：スリット間隔，\theta：角度，m：整数，\lambda：波長
 光	ヤングの明線間隔	\Delta x=\frac{L\lambda}{d}	干渉縞の間隔	\Delta x：縞間隔，L：スクリーンまでの距離，\lambda：波長，d：スリット間隔
 電気	電流	I=\frac{Q}{t}	単位時間あたりに流れる電気量	I：電流，Q：電気量，t：時間
 電気	オームの法則	V=RI	電圧は抵抗と電流の積	V：電圧，R：抵抗，I：電流
@@ -469,61 +457,63 @@
 電気	電力	P=I^2R	抵抗で消費される電力	P：電力，I：電流，R：抵抗
 電気	電力	P=\frac{V^2}{R}	電圧と抵抗で表した電力	P：電力，V：電圧，R：抵抗
 電気	ジュール熱	Q=I^2Rt	電流が抵抗で発生させる熱量	Q：熱量，I：電流，R：抵抗，t：時間
-電気	直列抵抗	R=R_1+R_2	直列接続の合成抵抗	R：合成抵抗
-電気	並列抵抗	\frac{1}{R}=\frac{1}{R_1}+\frac{1}{R_2}	並列接続の合成抵抗	R：合成抵抗
-電気	端子電圧	V=E-rI	内部抵抗がある電池の端子電圧	V：端子電圧，E：起電力，r：内部抵抗，I：電流
 電場	クーロンの法則	F=k\frac{Qq}{r^2}	電荷どうしにはたらく力	F：静電気力，k：比例定数，Q・q：電荷，r：距離
 電場	電場	E=\frac{F}{q}	単位電荷あたりにはたらく力	E：電場，F：力，q：電荷
-電場	点電荷の電場	E=k\frac{Q}{r^2}	点電荷がつくる電場	E：電場，k：比例定数，Q：電荷，r：距離
 電場	電位	V=\frac{U}{q}	単位電荷あたりの位置エネルギー	V：電位，U：位置エネルギー，q：電荷
 電場	コンデンサーの電気容量	C=\frac{Q}{V}	電圧1Vあたりに蓄えられる電気量	C：電気容量，Q：電気量，V：電圧
-電場	平行板コンデンサー	C=\varepsilon\frac{S}{d}	平行板コンデンサーの電気容量	C：電気容量，\varepsilon：誘電率，S：極板面積，d：極板間隔
-電場	コンデンサーのエネルギー	U=\frac{1}{2}CV^2	コンデンサーに蓄えられるエネルギー	U：エネルギー，C：電気容量，V：電圧
 磁場	ローレンツ力	F=qvB	磁場中を動く電荷が受ける力	F：力，q：電荷，v：速さ，B：磁束密度
 磁場	電流が受ける力	F=IB\ell	磁場中の電流が受ける力	F：力，I：電流，B：磁束密度，\ell：導線の長さ
 磁場	磁束	\Phi=BS\cos\theta	面を貫く磁場の量	\Phi：磁束，B：磁束密度，S：面積，\theta：角度
 電磁誘導	ファラデーの法則	V=-N\frac{\Delta\Phi}{\Delta t}	磁束の変化で誘導起電力が生じる	V：誘導起電力，N：巻数，\Delta\Phi：磁束変化，\Delta t：時間変化
 電磁誘導	導体棒の誘導起電力	V=B\ell v	磁場中を動く導体棒に生じる起電力	V：起電力，B：磁束密度，\ell：棒の長さ，v：速さ
-電磁誘導	自己誘導起電力	V=-L\frac{\Delta I}{\Delta t}	電流変化を妨げる向きに起電力が生じる	V：起電力，L：自己インダクタンス，\Delta I：電流変化，\Delta t：時間変化
-電磁誘導	コイルのエネルギー	U=\frac{1}{2}LI^2	コイルに蓄えられるエネルギー	U：エネルギー，L：自己インダクタンス，I：電流
-交流	交流電圧	v=V_0\sin\omega t	時間とともに変化する交流電圧	v：電圧，V_0：最大値，\omega：角周波数，t：時間
-交流	実効値	V_{\mathrm{e}}=\frac{V_0}{\sqrt{2}}	交流電圧の実効値	V_{\mathrm{e}}：実効値，V_0：最大値
-交流	実効値	I_{\mathrm{e}}=\frac{I_0}{\sqrt{2}}	交流電流の実効値	I_{\mathrm{e}}：実効値，I_0：最大値
-交流	変圧器	\frac{V_2}{V_1}=\frac{N_2}{N_1}	巻数比で電圧が変わる	V：電圧，N：巻数
 原子	光子のエネルギー	E=hf	光子1個がもつエネルギー	E：エネルギー，h：プランク定数，f：振動数
 原子	光子の運動量	p=\frac{h}{\lambda}	光子の運動量	p：運動量，h：プランク定数，\lambda：波長
 原子	光電効果	hf=W+K	光子のエネルギーが仕事関数と電子の運動エネルギーに分かれる	h：プランク定数，f：振動数，W：仕事関数，K：運動エネルギー
 原子	ド・ブロイ波長	\lambda=\frac{h}{p}	粒子にも波としての性質がある	\lambda：波長，h：プランク定数，p：運動量
-原子	質量とエネルギー	E=mc^2	質量はエネルギーに対応する	E：エネルギー，m：質量，c：光速
 </script>
 
 <script>
 const state = {
   formulas: [],
   current: null,
-  score: JSON.parse(localStorage.getItem('physics_quiz_score_tex') || '{"all":0,"ok":0}')
+  score: JSON.parse(localStorage.getItem('physics_quiz_score_tex_fixed') || '{"all":0,"ok":0}')
 };
 
 function parseTSV(text){
-  return text.trim().split(/\n/).slice(1).map(line=>{
-    const [unit, name, tex, meaning, vars] = line.split('\t');
-    return {unit, name, tex, meaning, vars};
-  }).filter(x => x.unit && x.name && x.tex);
+  return text.trim().split(/\n/).slice(1).map(line => {
+    const cols = line.split('\t');
+    return {
+      unit: cols[0],
+      name: cols[1],
+      tex: cols[2],
+      meaning: cols[3],
+      vars: cols[4]
+    };
+  }).filter(f => f.unit && f.name && f.tex);
 }
 
-function setHTML(el, html){
-  el.innerHTML = html;
+function mathInline(tex){
+  return `\\(${tex}\\)`;
 }
 
-function texSpan(tex){
-  return `\$begin:math:text$\$\{tex\}\\$end:math:text$`;
+function mathDisplay(tex){
+  return `\\[${tex}\\]`;
 }
 
-function typeset(elements){
-  if(window.MathJax && MathJax.typesetPromise){
-    MathJax.typesetClear(elements);
-    MathJax.typesetPromise(elements).catch(() => {});
-  }
+async function renderMath(elements){
+  if(!window.MathJax) return;
+  await MathJax.startup.promise;
+  MathJax.typesetClear(elements);
+  await MathJax.typesetPromise(elements);
+}
+
+function setText(el, text){
+  el.textContent = text;
+}
+
+function setMath(el, tex, display=false){
+  el.textContent = display ? mathDisplay(tex) : mathInline(tex);
+  renderMath([el]);
 }
 
 function shuffle(arr){
@@ -534,10 +524,20 @@ function pick(arr){
   return arr[Math.floor(Math.random() * arr.length)];
 }
 
+function escapeHTML(str){
+  return String(str ?? '').replace(/[&<>"']/g, m => ({
+    '&':'&amp;',
+    '<':'&lt;',
+    '>':'&gt;',
+    '"':'&quot;',
+    "'":'&#39;'
+  }[m]));
+}
+
 function setupUnits(){
   const units = ['すべて', ...new Set(state.formulas.map(f => f.unit))];
-  const sel = document.getElementById('unitSelect');
-  sel.innerHTML = units.map(u => `<option value="${u}">${u}</option>`).join('');
+  const select = document.getElementById('unitSelect');
+  select.innerHTML = units.map(u => `<option value="${escapeHTML(u)}">${escapeHTML(u)}</option>`).join('');
 }
 
 function getPool(){
@@ -547,19 +547,20 @@ function getPool(){
 }
 
 function updateScore(){
-  const {all, ok} = state.score;
+  const all = state.score.all;
+  const ok = state.score.ok;
   document.getElementById('scoreAll').textContent = all;
   document.getElementById('scoreOk').textContent = ok;
-  document.getElementById('scoreRate').textContent = all ? Math.round(ok/all*100) + '%' : '0%';
-  localStorage.setItem('physics_quiz_score_tex', JSON.stringify(state.score));
-}
-
-function resetChoices(){
-  document.getElementById('choices').innerHTML = '';
+  document.getElementById('scoreRate').textContent = all ? `${Math.round(ok / all * 100)}%` : '0%';
+  localStorage.setItem('physics_quiz_score_tex_fixed', JSON.stringify(state.score));
 }
 
 function hideAnswer(){
   document.getElementById('answerBox').classList.remove('show');
+}
+
+function resetChoices(){
+  document.getElementById('choices').innerHTML = '';
 }
 
 function showAnswer(){
@@ -567,20 +568,63 @@ function showAnswer(){
   if(!f) return;
 
   document.getElementById('ansName').textContent = f.name;
-  setHTML(document.getElementById('ansFormula'), texSpan(f.tex));
   document.getElementById('ansMeaning').textContent = f.meaning;
   document.getElementById('ansVars').textContent = f.vars;
+  setMath(document.getElementById('ansFormula'), f.tex, true);
 
   document.getElementById('answerBox').classList.add('show');
-  typeset([document.getElementById('answerBox')]);
+}
+
+function makeChoices(options){
+  const box = document.getElementById('choices');
+  box.innerHTML = '';
+
+  options.forEach(opt => {
+    const btn = document.createElement('button');
+    btn.className = 'choice';
+    btn.type = 'button';
+    btn.dataset.correct = opt.correct ? '1' : '0';
+
+    if(opt.kind === 'math'){
+      btn.textContent = mathInline(opt.text);
+    }else{
+      btn.textContent = opt.text;
+    }
+
+    btn.addEventListener('click', () => {
+      const buttons = [...box.querySelectorAll('button')];
+      buttons.forEach(b => b.disabled = true);
+
+      state.score.all += 1;
+
+      if(opt.correct){
+        state.score.ok += 1;
+        btn.classList.add('correct');
+      }else{
+        btn.classList.add('wrong');
+        const correctBtn = buttons.find(b => b.dataset.correct === '1');
+        if(correctBtn) correctBtn.classList.add('correct');
+      }
+
+      updateScore();
+      showAnswer();
+    });
+
+    box.appendChild(btn);
+  });
+
+  renderMath([box]);
 }
 
 function renderQuestion(){
   const pool = getPool();
 
   if(pool.length < 4){
-    document.getElementById('questionMain').textContent = 'この分野の登録数が少なすぎます。';
-    document.getElementById('questionSub').textContent = '少なくとも4つ以上ある分野を選んでください。';
+    document.getElementById('unitBadge').textContent = '出題不可';
+    document.getElementById('modeLabel').textContent = '';
+    document.getElementById('promptText').textContent = '登録数不足';
+    document.getElementById('questionMain').textContent = 'この分野は公式が4つ未満です。';
+    document.getElementById('questionSub').textContent = '4択問題にするため，別の分野を選んでください。';
     resetChoices();
     hideAnswer();
     return;
@@ -594,10 +638,10 @@ function renderQuestion(){
   resetChoices();
 
   const modeLabels = {
-    name_to_formula:'公式名 → 式を選ぶ',
-    formula_to_name:'式 → 公式名を選ぶ',
-    meaning_to_formula:'意味 → 式を選ぶ',
-    recall:'暗記モード（答え表示）'
+    name_to_formula: '公式名 → 式を選ぶ',
+    formula_to_name: '式 → 公式名を選ぶ',
+    meaning_to_formula: '意味 → 式を選ぶ',
+    recall: '暗記モード'
   };
 
   document.getElementById('unitBadge').textContent = f.unit;
@@ -609,26 +653,26 @@ function renderQuestion(){
     document.getElementById('questionSub').textContent = 'まず頭の中で式を思い出してから，選択してください。';
 
     const wrongs = shuffle(pool.filter(x => x.name !== f.name)).slice(0,3);
-    const options = shuffle([f, ...wrongs]);
-
-    makeChoices(options.map(opt => ({
-      html: texSpan(opt.tex),
+    const options = shuffle([f, ...wrongs]).map(opt => ({
+      kind: 'math',
+      text: opt.tex,
       correct: opt.name === f.name
-    })));
+    }));
+    makeChoices(options);
   }
 
   if(mode === 'formula_to_name'){
     document.getElementById('promptText').textContent = '次の式に対応する公式名を選べ。';
-    setHTML(document.getElementById('questionMain'), texSpan(f.tex));
-    document.getElementById('questionSub').textContent = '式の形を見て，何の式か判断してください。';
+    setMath(document.getElementById('questionMain'), f.tex, true);
+    document.getElementById('questionSub').textContent = '式の形を見て，何の公式か判断してください。';
 
     const wrongs = shuffle(pool.filter(x => x.name !== f.name)).slice(0,3);
-    const options = shuffle([f, ...wrongs]);
-
-    makeChoices(options.map(opt => ({
-      html: escapeHtml(opt.name),
+    const options = shuffle([f, ...wrongs]).map(opt => ({
+      kind: 'text',
+      text: opt.name,
       correct: opt.name === f.name
-    })));
+    }));
+    makeChoices(options);
   }
 
   if(mode === 'meaning_to_formula'){
@@ -637,12 +681,12 @@ function renderQuestion(){
     document.getElementById('questionSub').textContent = '説明を読んで，対応する式を選んでください。';
 
     const wrongs = shuffle(pool.filter(x => x.name !== f.name)).slice(0,3);
-    const options = shuffle([f, ...wrongs]);
-
-    makeChoices(options.map(opt => ({
-      html: texSpan(opt.tex),
+    const options = shuffle([f, ...wrongs]).map(opt => ({
+      kind: 'math',
+      text: opt.tex,
       correct: opt.name === f.name
-    })));
+    }));
+    makeChoices(options);
   }
 
   if(mode === 'recall'){
@@ -650,83 +694,50 @@ function renderQuestion(){
     document.getElementById('questionMain').textContent = f.name;
     document.getElementById('questionSub').textContent = 'ノートに式と意味を書いてから「答えを見る」を押してください。';
   }
-
-  typeset([
-    document.getElementById('questionMain'),
-    document.getElementById('choices')
-  ]);
-}
-
-function makeChoices(items){
-  const box = document.getElementById('choices');
-  box.innerHTML = '';
-
-  items.forEach(item => {
-    const btn = document.createElement('button');
-    btn.className = 'choice';
-    btn.innerHTML = item.html;
-
-    if(item.correct) btn.dataset.correct = '1';
-
-    btn.addEventListener('click', () => {
-      const buttons = [...box.querySelectorAll('button')];
-      buttons.forEach(b => b.disabled = true);
-
-      if(item.correct){
-        btn.classList.add('correct');
-        state.score.all += 1;
-        state.score.ok += 1;
-      }else{
-        btn.classList.add('wrong');
-        state.score.all += 1;
-
-        const correctBtn = buttons.find(b => b.dataset.correct === '1');
-        if(correctBtn) correctBtn.classList.add('correct');
-      }
-
-      updateScore();
-      showAnswer();
-    });
-
-    box.appendChild(btn);
-  });
-
-  typeset([box]);
-}
-
-function escapeHtml(s){
-  return String(s).replace(/[&<>"']/g, m => ({
-    '&':'&amp;',
-    '<':'&lt;',
-    '>':'&gt;',
-    '"':'&quot;',
-    "'":'&#39;'
-  }[m]));
 }
 
 function renderFormulaList(){
   const list = document.getElementById('formulaList');
+  list.innerHTML = '';
 
-  list.innerHTML = state.formulas.map(f => `
-    <div class="formula-item">
-      <div class="unit">${escapeHtml(f.unit)}</div>
-      <div class="name">${escapeHtml(f.name)}</div>
-      <div class="math">${texSpan(f.tex)}</div>
-      <div class="meaning">${escapeHtml(f.meaning)}</div>
-      <div class="vars">${escapeHtml(f.vars)}</div>
-    </div>
-  `).join('');
+  state.formulas.forEach(f => {
+    const item = document.createElement('div');
+    item.className = 'formula-item';
 
-  typeset([list]);
+    const unit = document.createElement('div');
+    unit.className = 'unit';
+    unit.textContent = f.unit;
+
+    const name = document.createElement('div');
+    name.className = 'name';
+    name.textContent = f.name;
+
+    const math = document.createElement('div');
+    math.className = 'math';
+    math.textContent = mathInline(f.tex);
+
+    const meaning = document.createElement('div');
+    meaning.className = 'meaning';
+    meaning.textContent = f.meaning;
+
+    const vars = document.createElement('div');
+    vars.className = 'vars';
+    vars.textContent = f.vars;
+
+    item.append(unit, name, math, meaning, vars);
+    list.appendChild(item);
+  });
+
+  renderMath([list]);
 }
 
 function init(){
-  const raw = document.getElementById('defaultData').textContent;
+  const raw = document.getElementById('formulaData').textContent;
   state.formulas = parseTSV(raw);
 
   setupUnits();
-  renderFormulaList();
   updateScore();
+  renderFormulaList();
 
   document.getElementById('nextBtn').addEventListener('click', renderQuestion);
 
@@ -736,9 +747,7 @@ function init(){
       return;
     }
 
-    const mode = document.getElementById('modeSelect').value;
-
-    if(mode === 'recall'){
+    if(document.getElementById('modeSelect').value === 'recall'){
       state.score.all += 1;
       updateScore();
     }
@@ -747,15 +756,20 @@ function init(){
   });
 
   document.getElementById('resetBtn').addEventListener('click', () => {
-    state.score = {all:0, ok:0};
+    state.score = { all:0, ok:0 };
     updateScore();
   });
 
-  document.getElementById('modeSelect').addEventListener('change', renderQuestion);
   document.getElementById('unitSelect').addEventListener('change', renderQuestion);
+  document.getElementById('modeSelect').addEventListener('change', renderQuestion);
 }
 
 document.addEventListener('DOMContentLoaded', init);
 </script>
 </body>
 </html>
+'''
+path = '/mnt/data/physics_formula_quiz_tex_fixed.html'
+with open(path, 'w', encoding='utf-8') as f:
+    f.write(html)
+print(path)
