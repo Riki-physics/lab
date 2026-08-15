@@ -1,0 +1,9 @@
+# 公開済みのため変更を禁止するファイル
+# ここに書いたファイルが変更されると，自動で元の内容に巻き戻されます。
+# 修正が必要になった場合は，このファイルを直すのではなく
+# 新しい YYYYMM を付けた別名で追加してください。
+fft202512.html
+acceleration202512.html
+tapmotion202512.html
+trigonometric202512.html
+doppler202604.html
