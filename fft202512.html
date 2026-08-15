@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>FFT ピーク周波数＋ドレミ音名（高解像度版）</title>
+  <style>
+    body {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      text-align: center;
+      margin: 20px;
+      background: #ffffff;
+      color: #000000;
+      font-size: 18px;
+    }
+    h1 {
+      font-size: 24px;
+      margin-bottom: 10px;
+    }
+    button {
+      font-size: 20px;
+      padding: 12px 28px;
+      margin-top: 10px;
+      border-radius: 6px;
+      border: 2px solid #333;
+      background: #f5f5f5;
+      cursor: pointer;
+    }
+    button:hover {
+      background: #e0e0e0;
+    }
+    canvas {
+      margin-top: 20px;
+      background: #ffffff;
+      border: 2px solid #000;
+      display: block;
+      margin-left: auto;
+      margin-right: auto;
+    }
+    table {
+      margin: 20px auto;
+      border-collapse: collapse;
+      font-size: 16px;
+      min-width: 420px;
+    }
+    th, td {
+      border: 1px solid #555;
+      padding: 6px 12px;
+    }
+    th {
+      background: #f0f0f0;
+    }
+  </style>
+</head>
+<body>
+  <h1>FFT ピーク周波数と音名（ドレミ表記・高解像度）</h1>
+  <button onclick="start()">▶ 測定開始</button>
+  <canvas id="spectrum" width="800" height="260"></canvas>
+
+  <table>
+    <thead>
+      <tr>
+        <th>時刻</th>
+        <th>ピーク周波数（Hz）</th>
+        <th>音名（ドレミ）</th>
+      </tr>
+    </thead>
+    <tbody id="logTable"></tbody>
+  </table>
+
+  <script>
+    let audioContext, analyser, dataArray, canvas, ctx;
+
+    async function start() {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      audioContext = new (window.AudioContext || window.webkitAudioContext)();
+      const source = audioContext.createMediaStreamSource(stream);
+
+      analyser = audioContext.createAnalyser();
+      analyser.fftSize = 8192; // ★ ここで解像度アップ（2048 → 8192）
+      const bufferLength = analyser.frequencyBinCount; // = fftSize / 2
+      dataArray = new Uint8Array(bufferLength);
+
+      source.connect(analyser);
+
+      canvas = document.getElementById('spectrum');
+      ctx = canvas.getContext('2d');
+
+      // 1秒ごとに解析
+      setInterval(() => analyze(bufferLength), 1000);
+    }
+
+    function analyze(bufferLength) {
+      analyser.getByteFrequencyData(dataArray);
+
+      const nyquist = audioContext.sampleRate / 2;
+      const freqPerBin = nyquist / bufferLength; // ≒ sampleRate / fftSize
+      const maxFreq = 2000;
+      const maxBin = Math.floor(maxFreq / freqPerBin);
+
+      // 最大値（ピーク）のざっくり探索
+      let maxIndex = 0;
+      for (let i = 1; i < maxBin; i++) {
+        if (dataArray[i] > dataArray[maxIndex]) {
+          maxIndex = i;
+        }
+      }
+
+      // ★ ピーク付近3点で放物線補間して、ビンの間でピークを推定
+      let refinedIndex = maxIndex;
+      if (maxIndex > 0 && maxIndex < maxBin - 1) {
+        const y1 = dataArray[maxIndex - 1];
+        const y2 = dataArray[maxIndex];
+        const y3 = dataArray[maxIndex + 1];
+
+        const denominator = (y1 - 2 * y2 + y3);
+        if (denominator !== 0) {
+          const delta = 0.5 * (y1 - y3) / denominator;
+          refinedIndex = maxIndex + delta; // maxIndex ± 0.5 程度の微調整
+        }
+      }
+
+      const peakFreq = refinedIndex * freqPerBin;
+      const peakFreqStr = peakFreq.toFixed(2);
+      const noteName = getDoReMiName(peakFreq);
+      const time = new Date().toLocaleTimeString();
+
+      addLogRow(time, peakFreqStr, noteName);
+      drawSpectrum(maxBin, freqPerBin, maxIndex, refinedIndex);
+    }
+
+    function drawSpectrum(maxBin, freqPerBin, peakIndex, refinedIndex) {
+      const width = canvas.width;
+      const height = canvas.height;
+      ctx.clearRect(0, 0, width, height);
+
+      const barWidth = width / maxBin;
+
+      // 棒グラフ
+      for (let i = 0; i < maxBin; i++) {
+        const value = dataArray[i];
+        const barHeight = (value / 255) * (height - 40); // 上に余白
+        ctx.fillStyle = "#444444";
+        ctx.fillRect(i * barWidth, height - barHeight - 30, barWidth, barHeight);
+      }
+
+      // ★ 補間後のピーク位置に赤い縦線
+      const peakX = refinedIndex * barWidth;
+      ctx.beginPath();
+      ctx.moveTo(peakX, 10);
+      ctx.lineTo(peakX, height - 30);
+      ctx.strokeStyle = "#ff0000";
+      ctx.lineWidth = 2;
+      ctx.stroke();
+
+      // 軸ラベル（横軸：周波数）
+      ctx.fillStyle = "#000000";
+      ctx.font = "14px sans-serif";
+      ctx.textAlign = "center";
+
+      const labelHz = [0, 500, 1000, 1500, 2000];
+      for (let hz of labelHz) {
+        const x = hz / 2000 * width;
+        ctx.fillText(`${hz} Hz`, x, height - 8);
+        ctx.beginPath();
+        ctx.moveTo(x, height - 30);
+        ctx.lineTo(x, height - 35);
+        ctx.strokeStyle = "#000000";
+        ctx.lineWidth = 1;
+        ctx.stroke();
+      }
+    }
+
+    function addLogRow(time, freq, note) {
+      const log = document.getElementById("logTable");
+      const row = document.createElement("tr");
+
+      [time, freq, note].forEach(text => {
+        const cell = document.createElement("td");
+        cell.textContent = text;
+        row.appendChild(cell);
+      });
+
+      log.insertBefore(row, log.firstChild);
+    }
+
+    function getDoReMiName(freq) {
+      if (freq < 20 || freq > 5000) return '（範囲外）';
+
+      const doremiNames = ['ド', 'ド♯', 'レ', 'レ♯', 'ミ', 'ファ',
+                           'ファ♯', 'ソ', 'ソ♯', 'ラ', 'ラ♯', 'シ'];
+
+      const noteNumber = 12 * Math.log2(freq / 440) + 69;
+      const rounded = Math.round(noteNumber);
+      const noteIndex = ((rounded % 12) + 12) % 12;
+      const octave = Math.floor(rounded / 12) - 1;
+      return `${doremiNames[noteIndex]}${octave}`;
+    }
+  </script>
+</body>
+</html>

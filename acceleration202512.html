@@ -1,0 +1,616 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>加速度センサー xyz（重力補正 + 軸説明 + 表 + レンジ + 5秒/継続 + 5秒表示固定）</title>
+<style>
+  body { font-family: system-ui, -apple-system, "Hiragino Kaku Gothic ProN", Meiryo, sans-serif; text-align: center; margin: 12px; }
+  #values { font-size: 1.1em; margin: 10px; }
+  canvas { border: 1px solid #ccc; margin-top: 10px; max-width: 100%; height: auto; }
+  #legend, #axisBox { margin-top: 10px; font-size: 0.95em; }
+  .dot { display: inline-block; width: 12px; height: 12px; margin-right: 4px; vertical-align: middle; }
+  .x { background: red; }
+  .y { background: green; }
+  .z { background: blue; }
+  table { margin: 12px auto; border-collapse: collapse; font-size: 0.95em; width: min(820px, 100%); }
+  th, td { border: 1px solid #aaa; padding: 6px 8px; }
+  th { background: #f0f0f0; }
+
+  .controls {
+    display: grid;
+    gap: 10px;
+    width: min(820px, 100%);
+    margin: 10px auto;
+    text-align: left;
+    padding: 10px 12px;
+    border: 1px solid #ddd;
+    border-radius: 10px;
+    background: #fafafa;
+  }
+  .row { display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: center; }
+  .row label { display: inline-flex; align-items: center; gap: 6px; }
+  .btns { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; margin-top: 6px; }
+  button {
+    font-size: 1.1em;
+    padding: 12px 16px;
+    border-radius: 10px;
+    border: 1px solid #ccc;
+    background: #fff;
+  }
+  button:disabled { opacity: 0.55; }
+  button:active { transform: translateY(1px); }
+
+  #status { font-size: 0.95em; color: #444; }
+  #msg {
+    width: min(820px, 100%);
+    margin: 6px auto 0;
+    padding: 8px 10px;
+    border: 1px solid #e5e5e5;
+    border-radius: 10px;
+    background: #fff;
+    font-size: 0.95em;
+    text-align: left;
+    color: #222;
+    min-height: 2.2em;
+  }
+  input[type="range"] { width: 220px; }
+</style>
+</head>
+<body>
+
+<h2>加速度 xyz（重力補正あり）</h2>
+
+<h3>スマホの xyz 軸の向き</h3>
+<div id="axisBox">
+  <svg width="260" height="260" viewBox="0 0 260 260">
+    <defs>
+      <marker id="arrow-red" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto">
+        <polygon points="0,0 10,5 0,10" fill="red"></polygon>
+      </marker>
+      <marker id="arrow-green" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto">
+        <polygon points="0,0 10,5 0,10" fill="green"></polygon>
+      </marker>
+      <marker id="arrow-blue" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto">
+        <polygon points="0,0 10,5 0,10" fill="blue"></polygon>
+      </marker>
+    </defs>
+
+    <rect x="0" y="0" width="260" height="260" fill="#ffffff"/>
+    <rect x="70" y="40" width="120" height="180" rx="20" ry="20" fill="#f8f8f8" stroke="#444" stroke-width="2"></rect>
+    <rect x="80" y="55" width="100" height="150" rx="10" ry="10" fill="#ffffff" stroke="#ddd" stroke-width="1.5"></rect>
+    <rect x="120" y="48" width="20" height="4" rx="2" ry="2" fill="#888"></rect>
+    <text x="130" y="135" text-anchor="middle" fill="#999" font-size="14">画面</text>
+
+    <circle cx="130" cy="130" r="4" fill="#555"></circle>
+
+    <line x1="130" y1="130" x2="215" y2="130" stroke="red" stroke-width="4" marker-end="url(#arrow-red)"></line>
+    <text x="220" y="128" fill="red" font-size="14">x（右）＋</text>
+
+    <line x1="130" y1="130" x2="130" y2="55" stroke="green" stroke-width="4" marker-end="url(#arrow-green)"></line>
+    <text x="135" y="50" fill="green" font-size="14">y（上）＋</text>
+
+    <line x1="130" y1="130" x2="95" y2="165" stroke="#99c" stroke-width="2" stroke-dasharray="4,4"></line>
+    <line x1="130" y1="130" x2="175" y2="195" stroke="blue" stroke-width="4" marker-end="url(#arrow-blue)"></line>
+    <text x="180" y="205" fill="blue" font-size="14">z（手前）＋</text>
+
+    <text x="138" y="144" font-size="12" fill="#555">原点</text>
+  </svg>
+
+  <p>※スマホを <strong>画面を上にして水平</strong>に置いたときの軸向き。</p>
+  <p>・右へ加速 → x（赤）<br>
+     ・上へ加速 → y（緑）<br>
+     ・手前へ加速 → z（青）</p>
+</div>
+
+<p>
+1. <strong>計測開始</strong>を押す<br>
+2. スマホを<strong>机の上に静止</strong>（キャリブ約1秒）<br>
+3. その後、手に持って振ったり回したりする
+</p>
+
+<div class="controls">
+  <div class="row">
+    <strong>モード：</strong>
+    <label><input type="radio" name="mode" id="mode5" checked> 5秒測定（自動停止）</label>
+    <label><input type="radio" name="mode" id="modeCont"> 継続（直近5秒を表示）</label>
+    <span id="status">待機中</span>
+  </div>
+
+  <div class="row">
+    <strong>縦軸レンジ：</strong>
+    <input type="range" id="rangeSlider" min="3" max="30" step="0.5" value="7.5">
+    <span>±<span id="rangeLabel">7.5</span> m/s²</span>
+  </div>
+
+  <div class="btns">
+    <button id="startBtn">計測開始（再キャリブレーション）</button>
+    <button id="stopBtn" disabled>停止</button>
+    <button id="clearBtn">クリア</button>
+  </div>
+</div>
+
+<div id="msg">操作：まず「計測開始」を押してください。</div>
+
+<div id="values">
+  x = -- m/s²<br>
+  y = -- m/s²<br>
+  z = -- m/s²
+</div>
+
+<canvas id="graph" width="820" height="320"></canvas>
+<div id="legend">
+  <span class="dot x"></span>x（赤）　
+  <span class="dot y"></span>y（緑）　
+  <span class="dot z"></span>z（青）　
+  （縦軸：±<span id="legendRange">7.5</span> m/s²、横軸：0〜5 s）
+</div>
+
+<h3>データ（新しいものが下 / 0.1秒ごと）</h3>
+<table>
+  <thead>
+    <tr>
+      <th>時刻 [s]</th>
+      <th>x [m/s²]</th>
+      <th>y [m/s²]</th>
+      <th>z [m/s²]</th>
+      <th>|a| [m/s²]</th>
+    </tr>
+  </thead>
+  <tbody id="dataTableBody"></tbody>
+</table>
+
+<script>
+/********** 状態変数 **********/
+let running = false;
+let permissionGranted = false;
+let calibrated = false;
+
+let captureStarted = false;
+let captureStartTime = null;    // ms（キャリブ完了時）
+let captureTimeoutId = null;
+
+const TIME_WINDOW = 5.0;        // ★ グラフ表示領域は常に 5 秒
+
+// 時刻付きデータ（秒）
+let dataX = []; // {t, v}
+let dataY = [];
+let dataZ = [];
+
+let lastSampleSec = 0;          // 最後に来たセンサ時刻（秒）
+let plotEndSec = null;          // ★ 停止後の「固定表示」用の右端時刻（秒）/ nullなら動く
+
+// 重力ベクトル
+let gX = 0, gY = 0, gZ = 0;
+let calibCount = 0;
+let sumGX = 0, sumGY = 0, sumGZ = 0;
+
+// 最新値（表用）
+let lastAx = 0, lastAy = 0, lastAz = 0;
+
+// 表用（0.1秒ごと）
+let tableIntervalId = null;
+let startTime = null;           // ms（キャリブ開始の時刻：表の基準）
+const maxTableRows = 400;       // 0.1秒だと増えるので多め
+
+// UI
+const valuesDiv = document.getElementById("values");
+const statusSpan = document.getElementById("status");
+const msgDiv = document.getElementById("msg");
+const rangeSlider = document.getElementById("rangeSlider");
+const rangeLabel = document.getElementById("rangeLabel");
+const legendRange = document.getElementById("legendRange");
+const mode5 = document.getElementById("mode5");
+const modeCont = document.getElementById("modeCont");
+
+const startBtn = document.getElementById("startBtn");
+const stopBtn  = document.getElementById("stopBtn");
+const clearBtn = document.getElementById("clearBtn");
+
+const canvas = document.getElementById("graph");
+const ctx = canvas.getContext("2d");
+const w = canvas.width;
+const h = canvas.height;
+
+let maxAbsAcc = parseFloat(rangeSlider.value);
+const tableBody = document.getElementById("dataTableBody");
+
+/********** UI helpers **********/
+function setStatus(msg) { statusSpan.textContent = msg; }
+function setMsg(msg) { msgDiv.textContent = msg; }
+
+function lockUI(isLocked) {
+  startBtn.disabled = isLocked;
+  mode5.disabled = isLocked;
+  modeCont.disabled = isLocked;
+  stopBtn.disabled = !isLocked;
+}
+
+/********** 縦軸レンジ **********/
+rangeSlider.addEventListener("input", () => {
+  maxAbsAcc = parseFloat(rangeSlider.value);
+  rangeLabel.textContent = maxAbsAcc.toFixed(1);
+  legendRange.textContent = maxAbsAcc.toFixed(1);
+  drawGraph();
+});
+
+/********** 許可（iOS対策） **********/
+async function ensurePermission() {
+  if (permissionGranted) return true;
+
+  if (typeof DeviceMotionEvent !== "undefined" &&
+      typeof DeviceMotionEvent.requestPermission === "function") {
+    try {
+      const state = await DeviceMotionEvent.requestPermission();
+      permissionGranted = (state === "granted");
+    } catch (e) {
+      permissionGranted = false;
+    }
+  } else {
+    permissionGranted = true;
+  }
+  return permissionGranted;
+}
+
+/********** ボタン処理 **********/
+startBtn.onclick = async () => {
+  if (running) return;
+
+  const ok = await ensurePermission();
+  if (!ok) {
+    setMsg("センサーアクセスが拒否されました。Safari設定（モーションと方向のアクセス）などを確認してください。");
+    return;
+  }
+
+  clearAll({ keepMsg: true });
+
+  running = true;
+  lockUI(true);
+
+  startTime = performance.now();
+  setStatus("キャリブ中…");
+  setMsg("スマホを机の上で静止（約1秒）→キャリブ完了後に計測が始まります。");
+
+  // 表は「キャリブ完了後」から（0.1秒ごと）
+  tableIntervalId = setInterval(() => {
+    if (!running || !calibrated) return;
+    if (mode5.checked && !captureStarted) return;
+    addRowToTable();
+  }, 100);
+};
+
+stopBtn.onclick = () => {
+  stopRunning("停止しました（グラフ固定）");
+  setMsg("停止しました。もう一度やるなら「計測開始」。");
+};
+
+clearBtn.onclick = () => {
+  clearAll({ keepMsg: false });
+  setStatus("クリアしました（待機中）");
+  setMsg("クリアしました。操作：まず「計測開始」を押してください。");
+};
+
+/********** クリア & 停止 **********/
+function clearAll({ keepMsg } = { keepMsg:false }) {
+  // データ
+  dataX = []; dataY = []; dataZ = [];
+  lastSampleSec = 0;
+  plotEndSec = null;
+
+  drawGraph();
+
+  // キャリブ
+  calibrated = false;
+  calibCount = 0;
+  sumGX = sumGY = sumGZ = 0;
+  gX = gY = gZ = 0;
+
+  // 5秒モード用
+  captureStarted = false;
+  captureStartTime = null;
+  if (captureTimeoutId !== null) {
+    clearTimeout(captureTimeoutId);
+    captureTimeoutId = null;
+  }
+
+  // 表
+  tableBody.innerHTML = "";
+  if (tableIntervalId !== null) {
+    clearInterval(tableIntervalId);
+    tableIntervalId = null;
+  }
+
+  // 値表示
+  lastAx = lastAy = lastAz = 0;
+  valuesDiv.innerHTML = `x = -- m/s²<br>y = -- m/s²<br>z = -- m/s²`;
+
+  running = false;
+  startTime = null;
+  lockUI(false);
+
+  if (!keepMsg) setMsg("");
+}
+
+function stopRunning(msg) {
+  running = false;
+
+  // ★ 停止した瞬間の「右端」を固定（これで停止後も5秒ぴったりのまま）
+  if (mode5.checked && captureStartTime !== null) {
+    plotEndSec = (captureStartTime / 1000) + TIME_WINDOW;
+  } else {
+    plotEndSec = lastSampleSec || (performance.now() / 1000);
+  }
+
+  if (tableIntervalId !== null) {
+    clearInterval(tableIntervalId);
+    tableIntervalId = null;
+  }
+  if (captureTimeoutId !== null) {
+    clearTimeout(captureTimeoutId);
+    captureTimeoutId = null;
+  }
+
+  setStatus(msg);
+  lockUI(false);
+  drawGraph();
+}
+
+/********** センサーデータ取得 **********/
+window.addEventListener("devicemotion", (e) => {
+  if (!permissionGranted || !running) return;
+
+  const accG = e.accelerationIncludingGravity;
+  if (!accG) return;
+
+  const axG = accG.x || 0;
+  const ayG = accG.y || 0;
+  const azG = accG.z || 0;
+
+  // キャリブ（約30サンプル）
+  if (!calibrated) {
+    calibCount++;
+    sumGX += axG;
+    sumGY += ayG;
+    sumGZ += azG;
+
+    if (calibCount >= 30) {
+      const avgX = sumGX / calibCount;
+      const avgY = sumGY / calibCount;
+      const avgZ = sumGZ / calibCount;
+
+      const len = Math.sqrt(avgX*avgX + avgY*avgY + avgZ*avgZ) || 9.8;
+      const gMag = 9.8;
+
+      gX = gMag * avgX / len;
+      gY = gMag * avgY / len;
+      gZ = gMag * avgZ / len;
+
+      calibrated = true;
+
+      if (mode5.checked) {
+        captureStarted = true;
+        captureStartTime = performance.now(); // ms
+        plotEndSec = null; // 動作中はnull（描画は固定窓：start+5で行う）
+        setStatus("計測中（5秒）…");
+        setMsg("キャリブ完了！ここから5秒だけ計測します（終了後はグラフ固定）。");
+
+        captureTimeoutId = setTimeout(() => {
+          stopRunning("5秒測定が終了（グラフ固定）");
+          setMsg("5秒測定が終了しました（グラフ固定）。もう一度やるなら「計測開始」。");
+        }, 5000);
+
+      } else {
+        plotEndSec = null; // 継続は動く
+        setStatus("計測中（継続：直近5秒表示）…");
+        setMsg("キャリブ完了！スマホを持って動かしてください（停止は「停止」）。");
+      }
+    }
+    return;
+  }
+
+  if (mode5.checked && !captureStarted) return;
+
+  // 時刻（秒）
+  const nowSec = performance.now() / 1000;
+  lastSampleSec = nowSec;
+
+  // 重力補正 + 符号反転（右・上・手前を正方向に）
+  const ax = -(axG - gX);
+  const ay = -(ayG - gY);
+  const az = -(azG - gZ);
+
+  lastAx = ax; lastAy = ay; lastAz = az;
+
+  valuesDiv.innerHTML =
+    `x = ${ax.toFixed(2)} m/s²<br>` +
+    `y = ${ay.toFixed(2)} m/s²<br>` +
+    `z = ${az.toFixed(2)} m/s²`;
+
+  // 追加
+  dataX.push({ t: nowSec, v: ax });
+  dataY.push({ t: nowSec, v: ay });
+  dataZ.push({ t: nowSec, v: az });
+
+  // ★ 5秒ぴったり表示のために古いデータを削除
+  if (mode5.checked && captureStartTime !== null) {
+    const t0 = (captureStartTime / 1000);
+    const t1 = t0 + TIME_WINDOW;
+    // 5秒モードは [t0, t1] に収める
+    pruneBefore(t0);
+    pruneAfter(t1);
+  } else {
+    // 継続モードは「直近5秒」
+    pruneBefore(nowSec - TIME_WINDOW);
+  }
+
+  drawGraph();
+
+  function pruneBefore(threshold) {
+    [dataX, dataY, dataZ].forEach(arr => {
+      while (arr.length && arr[0].t < threshold) arr.shift();
+    });
+  }
+  function pruneAfter(threshold) {
+    [dataX, dataY, dataZ].forEach(arr => {
+      while (arr.length && arr[arr.length - 1].t > threshold) arr.pop();
+    });
+  }
+});
+
+/********** グラフ（縦軸数値 + 横軸0〜5秒） **********/
+function drawGraph() {
+  ctx.clearRect(0, 0, w, h);
+
+  const leftPad = 56;
+  const rightPad = 14;
+  const topPad = 10;
+  const bottomPad = 36; // 横軸ラベル用
+
+  const plotW = w - leftPad - rightPad;
+  const plotH = h - topPad - bottomPad;
+
+  const midY = topPad + plotH / 2;
+  const scaleY = plotH / (2 * maxAbsAcc);
+
+  // ★ 表示窓（5秒固定）
+  let endSec;
+  if (plotEndSec !== null) {
+    endSec = plotEndSec; // 停止後は固定
+  } else if (mode5.checked && captureStarted && captureStartTime !== null) {
+    endSec = (captureStartTime / 1000) + TIME_WINDOW; // 5秒モードは右端固定
+  } else {
+    endSec = performance.now() / 1000; // 継続は右端が動く
+  }
+  const startSec = endSec - TIME_WINDOW;
+
+  // 背景の枠
+  ctx.strokeStyle = "#ddd";
+  ctx.lineWidth = 1;
+  ctx.strokeRect(leftPad, topPad, plotW, plotH);
+
+  // 縦軸：補助線 + ラベル
+  ctx.font = "12px system-ui, -apple-system, sans-serif";
+  ctx.fillStyle = "#555";
+  ctx.textAlign = "right";
+  ctx.textBaseline = "middle";
+
+  const ticksY = [
+    -maxAbsAcc,
+    -maxAbsAcc * 2/3,
+    -maxAbsAcc / 3,
+    0,
+    maxAbsAcc / 3,
+    maxAbsAcc * 2/3,
+    maxAbsAcc
+  ];
+
+  ticksY.forEach(v => {
+    const y = midY - v * scaleY;
+
+    ctx.beginPath();
+    ctx.moveTo(leftPad, y);
+    ctx.lineTo(leftPad + plotW, y);
+    ctx.strokeStyle = (v === 0) ? "#888" : "#eaeaea";
+    ctx.lineWidth = 1;
+    ctx.stroke();
+
+    ctx.fillText(v.toFixed(1), leftPad - 6, y);
+
+    ctx.beginPath();
+    ctx.moveTo(leftPad - 4, y);
+    ctx.lineTo(leftPad, y);
+    ctx.strokeStyle = "#777";
+    ctx.stroke();
+  });
+
+  // 横軸：0〜5秒（目盛線 + ラベル）
+  ctx.textAlign = "center";
+  ctx.textBaseline = "top";
+  ctx.fillStyle = "#555";
+
+  for (let s = 0; s <= 5; s++) {
+    const x = leftPad + (s / TIME_WINDOW) * plotW;
+
+    // 目盛線（薄い）
+    ctx.beginPath();
+    ctx.moveTo(x, topPad);
+    ctx.lineTo(x, topPad + plotH);
+    ctx.strokeStyle = "#f2f2f2";
+    ctx.lineWidth = 1;
+    ctx.stroke();
+
+    // ラベル
+    ctx.fillText(String(s), x, topPad + plotH + 6);
+  }
+
+  // 単位 "s"
+  ctx.textAlign = "left";
+  ctx.fillText("s", leftPad + plotW + 6, topPad + plotH + 6);
+
+  // データ線
+  drawLine(dataX, "red");
+  drawLine(dataY, "green");
+  drawLine(dataZ, "blue");
+
+  function drawLine(arr, color) {
+    if (!arr || arr.length < 2) return;
+
+    ctx.beginPath();
+    let started = false;
+
+    for (const p of arr) {
+      if (p.t < startSec || p.t > endSec) continue;
+
+      const x = leftPad + ((p.t - startSec) / TIME_WINDOW) * plotW;
+      const y = midY - p.v * scaleY;
+
+      if (!started) { ctx.moveTo(x, y); started = true; }
+      else ctx.lineTo(x, y);
+    }
+
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 2;
+    ctx.stroke();
+  }
+}
+
+/********** 表（0.1秒ごと・新しいものは下） **********/
+function addRowToTable() {
+  let tSec;
+  if (mode5.checked && captureStartTime !== null) {
+    tSec = ((performance.now() - captureStartTime) / 1000);
+  } else if (startTime !== null) {
+    tSec = ((performance.now() - startTime) / 1000);
+  } else {
+    tSec = 0;
+  }
+
+  // 5秒モードでは表の時刻を 0〜5 に収めたい場合：
+  // tSec = Math.max(0, Math.min(TIME_WINDOW, tSec));
+
+  const t = tSec.toFixed(1);
+  const ax = lastAx, ay = lastAy, az = lastAz;
+  const mag = Math.sqrt(ax*ax + ay*ay + az*az);
+
+  const tr = document.createElement("tr");
+  tr.innerHTML = `
+    <td>${t}</td>
+    <td>${ax.toFixed(2)}</td>
+    <td>${ay.toFixed(2)}</td>
+    <td>${az.toFixed(2)}</td>
+    <td>${mag.toFixed(2)}</td>
+  `;
+
+  tableBody.appendChild(tr);
+
+  while (tableBody.rows.length > maxTableRows) {
+    tableBody.deleteRow(0);
+  }
+}
+
+// 初期描画
+drawGraph();
+</script>
+
+</body>
+</html>
