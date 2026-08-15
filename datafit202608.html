@@ -1,0 +1,952 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>散布図＆フィッティングツール（物理データ用）</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    font-family: system-ui, -apple-system, "Hiragino Kaku Gothic ProN", Meiryo, sans-serif;
+    text-align: center;
+    margin: 16px;
+    background: #ffffff;
+    color: #0b0b0b;
+    font-size: 16px;
+  }
+  h1 { font-size: 22px; margin-bottom: 6px; }
+  .lead { color: #52514e; font-size: 0.92em; max-width: 720px; margin: 0 auto 16px; line-height: 1.6; text-align: left; }
+  .wrap { max-width: 1200px; margin: 0 auto; }
+  .sym { font-family: "Times New Roman", Times, serif; font-style: italic; }
+
+  .mainLayout { display: flex; gap: 24px; align-items: flex-start; }
+  .tableCol { flex: 0 0 340px; min-width: 0; }
+  .chartCol { flex: 1 1 auto; min-width: 0; }
+  @media (max-width: 1080px) {
+    .mainLayout { flex-direction: column; }
+    .tableCol { flex: none; width: 100%; order: 2; }
+    .chartCol { width: 100%; order: 1; }
+  }
+
+  .box {
+    border: 1px solid #ddd;
+    border-radius: 10px;
+    background: #fafafa;
+    padding: 10px 16px;
+    margin: 12px auto;
+    text-align: left;
+  }
+
+  .labelsbox { display: flex; flex-wrap: wrap; gap: 8px 20px; align-items: center; justify-content: center; }
+  .labelsbox .field { display: flex; align-items: center; gap: 6px; }
+  .labelsbox label { font-size: 0.85em; color: #52514e; white-space: nowrap; }
+  .labelsbox input[type=text] { width: 60px; padding: 4px 6px; }
+  .labelsbox .namefield input[type=text] { width: 96px; }
+  .labelsbox .sep { width: 1px; align-self: stretch; background: #ddd; margin: 0 4px; }
+
+  .legend { display: flex; gap: 22px; justify-content: center; margin: 10px 0 4px; font-size: 0.95em; }
+  .legend .item { display: flex; align-items: center; gap: 6px; color: #52514e; }
+  .legend .swatch { width: 12px; height: 12px; border-radius: 3px; display: inline-block; }
+  .legend .s1 { background: #2a78d6; }
+  .legend .s2 { background: #eb6834; }
+
+  canvas { display: block; margin: 0 auto; max-width: 100%; height: auto; border: 1px solid #ccc; border-radius: 6px; background: #fcfcfb; touch-action: none; }
+  .canvashint { text-align: center; color: #898781; font-size: 0.85em; margin: 6px 0 0; }
+
+  .fitrow {
+    display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+    padding: 8px 12px; border-radius: 8px; margin: 8px auto; max-width: 860px;
+  }
+  .fitrow.s1 { background: rgba(42,120,214,0.07); border-left: 4px solid #2a78d6; }
+  .fitrow.s2 { background: rgba(235,104,52,0.07); border-left: 4px solid #eb6834; }
+  .fitrow .name { font-weight: 600; min-width: 3.5em; }
+  .fitrow select { font-size: 0.92em; padding: 5px 6px; }
+  .fitrow button { font-size: 0.88em; padding: 6px 12px; }
+  .fitrow .eq { font-size: 1.1em; min-width: 8em; }
+  .fitrow .r2 { color: #52514e; font-size: 0.88em; margin-left: auto; }
+
+  button {
+    font-size: 0.95em;
+    padding: 8px 16px;
+    border-radius: 8px;
+    border: 1px solid #ccc;
+    background: #fff;
+    cursor: pointer;
+  }
+  button:hover { background: #eee; }
+
+  /* --- スプレッドシート風データ表 --- */
+  .tablewrap { max-height: 560px; overflow-y: auto; border: 1px solid #c9c9c9; border-radius: 6px; }
+  table#dataTable { border-collapse: collapse; width: 100%; font-size: 0.95em; table-layout: fixed; }
+  #dataTable th {
+    background: #f3f3f1; color: #333; font-weight: 600; border: 1px solid #d5d5d2;
+    padding: 6px 4px; position: sticky; top: 0; z-index: 1;
+  }
+  #dataTable th.rownum, #dataTable td.rownum {
+    width: 34px; background: #f3f3f1; color: #999; text-align: center; font-size: 0.82em; user-select: none;
+  }
+  #dataTable th.delcol { width: 30px; }
+  #dataTable td { border: 1px solid #e2e2df; padding: 0; height: 30px; }
+  #dataTable td .cell {
+    width: 100%; height: 100%; border: none; outline: none; background: transparent;
+    padding: 5px 8px; text-align: right; font-size: 0.95em; font-variant-numeric: tabular-nums;
+    font-family: inherit;
+  }
+  #dataTable td .cell:focus { outline: 2px solid #2a78d6; outline-offset: -2px; background: #eaf2fc; }
+  .del-row { width: 100%; height: 100%; background: none; border: none; color: #b3541e; cursor: pointer; padding: 0; border-radius: 0; }
+  .del-row:hover { background: #fbe4dc; color: #e34948; }
+
+  .tablebtns { display: flex; gap: 10px; justify-content: center; margin-top: 10px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <h1>散布図＆フィッティングツール</h1>
+  <p class="lead">
+    1. 下の表（表計算ソフトのように操作できます）に <span class="sym">x</span>，<span class="sym">y</span> の値を入力，または Excel や Numbers からコピーしたデータをそのまま貼り付けると，グラフに反映されます。<br>
+    2. グラフ下の「関数」欄で近似曲線の種類を選ぶと，最小二乗法で自動フィットされた曲線が表示されます。<br>
+    3. グラフ上の <b>●</b> を直接ドラッグすると，その点を通るように曲線がリアルタイムに変形します。
+  </p>
+
+  <div class="box labelsbox" id="labelsBox">
+    <div class="field"><label>横軸 記号</label><input type="text" id="xSym" value="x"></div>
+    <div class="field"><label>単位</label><input type="text" id="xUnit" value="s"></div>
+    <div class="sep"></div>
+    <div class="field"><label>縦軸 記号</label><input type="text" id="ySym" value="y"></div>
+    <div class="field"><label>単位</label><input type="text" id="yUnit" value="m"></div>
+    <div class="sep"></div>
+    <div class="field namefield"><label>系列1 名</label><input type="text" id="s1Name" value="系列1"></div>
+    <div class="field namefield"><label>系列2 名</label><input type="text" id="s2Name" value="系列2"></div>
+  </div>
+
+  <div class="mainLayout">
+    <div class="tableCol">
+      <div class="box">
+        <div class="tablewrap">
+          <table id="dataTable">
+            <thead>
+              <tr>
+                <th class="rownum">#</th>
+                <th>X</th>
+                <th id="thY1">系列1</th>
+                <th id="thY2">系列2</th>
+                <th class="delcol"></th>
+              </tr>
+            </thead>
+            <tbody id="dataBody"></tbody>
+          </table>
+        </div>
+        <div class="tablebtns">
+          <button id="addRowBtn" type="button">＋ 行を追加</button>
+          <button id="clearBtn" type="button">全クリア</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="chartCol">
+      <div class="legend">
+        <span class="item"><span class="swatch s1"></span><span id="legendName1">系列1</span></span>
+        <span class="item"><span class="swatch s2"></span><span id="legendName2">系列2</span></span>
+      </div>
+
+      <canvas id="chart"></canvas>
+      <p class="canvashint">グラフ上の点をドラッグすると曲線を調整できます</p>
+
+      <div class="fitrow s1">
+        <span class="name" id="fit1title">系列1</span>
+        <select id="fit1type"></select>
+        <button id="fit1auto" type="button">自動フィット</button>
+        <span class="eq" id="fit1eq"></span>
+        <span class="r2" id="fit1r2">R² = —</span>
+      </div>
+      <div class="fitrow s2">
+        <span class="name" id="fit2title">系列2</span>
+        <select id="fit2type"></select>
+        <button id="fit2auto" type="button">自動フィット</button>
+        <span class="eq" id="fit2eq"></span>
+        <span class="r2" id="fit2r2">R² = —</span>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  const COLORS = {
+    surface: "#fcfcfb",
+    ink: "#0b0b0b",
+    inkSecondary: "#52514e",
+    muted: "#898781",
+    grid: "#e1e0d9",
+    baseline: "#c3c2b7",
+    series1: "#2a78d6",
+    series2: "#eb6834",
+  };
+
+  const fitState = {
+    1: { type: null, handles: [] },
+    2: { type: null, handles: [] },
+  };
+  let dragging = null;   // { series, index }
+  let lastGeom = null;
+
+  // ---------- 数値フォーマット ----------
+
+  function fmt(n) {
+    if (!isFinite(n)) return "—";
+    if (n === 0) return "0";
+    const a = Math.abs(n);
+    const digits = a >= 100 ? 1 : a >= 10 ? 2 : a >= 1 ? 3 : a >= 0.01 ? 4 : 6;
+    let s = n.toFixed(digits);
+    if (s.indexOf(".") >= 0) s = s.replace(/0+$/, "").replace(/\.$/, "");
+    return s;
+  }
+
+  function signedTerm(n) {
+    return (n < 0 ? " − " : " + ") + fmt(Math.abs(n));
+  }
+
+  // ---------- 回帰計算（最小二乗法：自動フィット用） ----------
+
+  function linreg(xs, ys) {
+    const n = xs.length;
+    if (n < 2) return null;
+    let sx = 0, sy = 0, sxx = 0, sxy = 0;
+    for (let i = 0; i < n; i++) {
+      sx += xs[i]; sy += ys[i]; sxx += xs[i] * xs[i]; sxy += xs[i] * ys[i];
+    }
+    const denom = n * sxx - sx * sx;
+    if (denom === 0) return null;
+    const slope = (n * sxy - sx * sy) / denom;
+    const intercept = (sy - slope * sx) / n;
+    return { slope, intercept };
+  }
+
+  function solve3x3(A, b) {
+    const M = A.map((row, i) => [...row, b[i]]);
+    for (let col = 0; col < 3; col++) {
+      let piv = col;
+      for (let r = col + 1; r < 3; r++) if (Math.abs(M[r][col]) > Math.abs(M[piv][col])) piv = r;
+      if (Math.abs(M[piv][col]) < 1e-10) return null;
+      [M[col], M[piv]] = [M[piv], M[col]];
+      for (let r = 0; r < 3; r++) {
+        if (r === col) continue;
+        const factor = M[r][col] / M[col][col];
+        for (let c = col; c < 4; c++) M[r][c] -= factor * M[col][c];
+      }
+    }
+    return [M[0][3] / M[0][0], M[1][3] / M[1][1], M[2][3] / M[2][2]];
+  }
+
+  // 関数定義：predict=曲線の式，fit=最小二乗法（自動フィット），
+  // solveExact=ハンドル点をちょうど通る曲線を求める（ドラッグ操作用），eq=数式表示
+  const FIT_DEFS = {
+    prop: {
+      label: "比例 y = ax",
+      params: ["a"],
+      predict: (x, p) => p.a * x,
+      fit(pts) {
+        let sxx = 0, sxy = 0;
+        pts.forEach(({ x, y }) => { sxx += x * x; sxy += x * y; });
+        if (sxx === 0) return null;
+        return { a: sxy / sxx };
+      },
+      solveExact(h) {
+        const x = Math.abs(h[0].x) < 1e-6 ? (h[0].x < 0 ? -1e-6 : 1e-6) : h[0].x;
+        return { a: h[0].y / x };
+      },
+      eq(p) { return `<span class="sym">y</span> = ${fmt(p.a)}<span class="sym">x</span>`; },
+    },
+    linear: {
+      label: "一次関数 y = ax + b",
+      params: ["a", "b"],
+      predict: (x, p) => p.a * x + p.b,
+      fit(pts) {
+        const r = linreg(pts.map(d => d.x), pts.map(d => d.y));
+        return r ? { a: r.slope, b: r.intercept } : null;
+      },
+      solveExact(h) {
+        let [p1, p2] = h;
+        if (Math.abs(p2.x - p1.x) < 1e-9) p2 = { x: p1.x + 1e-6, y: p2.y };
+        const a = (p2.y - p1.y) / (p2.x - p1.x);
+        const b = p1.y - a * p1.x;
+        return { a, b };
+      },
+      eq(p) { return `<span class="sym">y</span> = ${fmt(p.a)}<span class="sym">x</span>${signedTerm(p.b)}`; },
+    },
+    quad: {
+      label: "二次関数 y = ax²+bx+c",
+      params: ["a", "b", "c"],
+      predict: (x, p) => p.a * x * x + p.b * x + p.c,
+      fit(pts) {
+        if (pts.length < 3) return null;
+        let n = pts.length, sx = 0, sx2 = 0, sx3 = 0, sx4 = 0, sy = 0, sxy = 0, sx2y = 0;
+        pts.forEach(({ x, y }) => {
+          const x2 = x * x, x3 = x2 * x, x4 = x3 * x;
+          sx += x; sx2 += x2; sx3 += x3; sx4 += x4; sy += y; sxy += x * y; sx2y += x2 * y;
+        });
+        const A = [[sx4, sx3, sx2], [sx3, sx2, sx], [sx2, sx, n]];
+        const B = [sx2y, sxy, sy];
+        const sol = solve3x3(A, B);
+        return sol ? { a: sol[0], b: sol[1], c: sol[2] } : null;
+      },
+      solveExact(h) {
+        const [p1, p2, p3] = h;
+        const A = [[p1.x * p1.x, p1.x, 1], [p2.x * p2.x, p2.x, 1], [p3.x * p3.x, p3.x, 1]];
+        const B = [p1.y, p2.y, p3.y];
+        const sol = solve3x3(A, B);
+        return sol ? { a: sol[0], b: sol[1], c: sol[2] } : { a: 0, b: 0, c: p1.y };
+      },
+      eq(p) { return `<span class="sym">y</span> = ${fmt(p.a)}<span class="sym">x</span>²${signedTerm(p.b)}<span class="sym">x</span>${signedTerm(p.c)}`; },
+    },
+    power: {
+      label: "べき乗 y = ax^n",
+      params: ["a", "n"],
+      predict: (x, p) => (x > 0 ? p.a * Math.pow(x, p.n) : NaN),
+      fit(pts) {
+        const f = pts.filter(d => d.x > 0 && d.y > 0);
+        if (f.length < 2) return null;
+        const r = linreg(f.map(d => Math.log(d.x)), f.map(d => Math.log(d.y)));
+        return r ? { a: Math.exp(r.intercept), n: r.slope } : null;
+      },
+      solveExact(h) {
+        const x1 = Math.max(h[0].x, 1e-6), x2 = Math.max(h[1].x, 1e-6);
+        const y1 = Math.max(h[0].y, 1e-6), y2 = Math.max(h[1].y, 1e-6);
+        if (Math.abs(Math.log(x2) - Math.log(x1)) < 1e-9) return { a: y1, n: 1 };
+        const n = (Math.log(y2) - Math.log(y1)) / (Math.log(x2) - Math.log(x1));
+        const a = Math.exp(Math.log(y1) - n * Math.log(x1));
+        return { a, n };
+      },
+      eq(p) { return `<span class="sym">y</span> = ${fmt(p.a)}<span class="sym">x</span><sup>${fmt(p.n)}</sup>`; },
+    },
+    exp: {
+      label: "指数関数 y = ae^(bx)",
+      params: ["a", "b"],
+      predict: (x, p) => p.a * Math.exp(p.b * x),
+      fit(pts) {
+        const f = pts.filter(d => d.y > 0);
+        if (f.length < 2) return null;
+        const r = linreg(f.map(d => d.x), f.map(d => Math.log(d.y)));
+        return r ? { a: Math.exp(r.intercept), b: r.slope } : null;
+      },
+      solveExact(h) {
+        const y1 = Math.max(h[0].y, 1e-6), y2 = Math.max(h[1].y, 1e-6);
+        if (Math.abs(h[1].x - h[0].x) < 1e-9) return { a: y1, b: 0 };
+        const b = (Math.log(y2) - Math.log(y1)) / (h[1].x - h[0].x);
+        const a = Math.exp(Math.log(y1) - b * h[0].x);
+        return { a, b };
+      },
+      eq(p) { return `<span class="sym">y</span> = ${fmt(p.a)}<span class="sym">e</span><sup>${fmt(p.b)}<span class="sym">x</span></sup>`; },
+    },
+    log: {
+      label: "対数関数 y = a·ln(x)+b",
+      params: ["a", "b"],
+      predict: (x, p) => (x > 0 ? p.a * Math.log(x) + p.b : NaN),
+      fit(pts) {
+        const f = pts.filter(d => d.x > 0);
+        if (f.length < 2) return null;
+        const r = linreg(f.map(d => Math.log(d.x)), f.map(d => d.y));
+        return r ? { a: r.slope, b: r.intercept } : null;
+      },
+      solveExact(h) {
+        const x1 = Math.max(h[0].x, 1e-6), x2 = Math.max(h[1].x, 1e-6);
+        if (Math.abs(Math.log(x2) - Math.log(x1)) < 1e-9) return { a: 0, b: h[0].y };
+        const a = (h[1].y - h[0].y) / (Math.log(x2) - Math.log(x1));
+        const b = h[0].y - a * Math.log(x1);
+        return { a, b };
+      },
+      eq(p) { return `<span class="sym">y</span> = ${fmt(p.a)}ln(<span class="sym">x</span>)${signedTerm(p.b)}`; },
+    },
+  };
+
+  function clampX(type, x) {
+    if ((type === "power" || type === "log") && x <= 0) return 1e-3;
+    return x;
+  }
+  function clampY(type, y) {
+    if ((type === "power" || type === "exp") && y <= 0) return 1e-3;
+    return y;
+  }
+
+  function computeR2(def, params, pts) {
+    const valid = [];
+    pts.forEach(d => {
+      const yh = def.predict(d.x, params);
+      if (isFinite(yh)) valid.push({ y: d.y, yh });
+    });
+    if (valid.length < 2) return null;
+    const mean = valid.reduce((s, d) => s + d.y, 0) / valid.length;
+    let ssRes = 0, ssTot = 0;
+    valid.forEach(({ y, yh }) => { ssRes += (y - yh) ** 2; ssTot += (y - mean) ** 2; });
+    if (ssTot === 0) return null;
+    return 1 - ssRes / ssTot;
+  }
+
+  // ---------- 目盛り（きれいな数値） ----------
+
+  function niceNum(range, round) {
+    if (range <= 0) range = 1;
+    const exponent = Math.floor(Math.log10(range));
+    const fraction = range / Math.pow(10, exponent);
+    let niceFraction;
+    if (round) {
+      niceFraction = fraction < 1.5 ? 1 : fraction < 3 ? 2 : fraction < 7 ? 5 : 10;
+    } else {
+      niceFraction = fraction <= 1 ? 1 : fraction <= 2 ? 2 : fraction <= 5 ? 5 : 10;
+    }
+    return niceFraction * Math.pow(10, exponent);
+  }
+
+  function niceTicks(min, max, targetCount) {
+    if (min === max) { min -= 1; max += 1; }
+    if (min > max) { const t = min; min = max; max = t; }
+    const range = niceNum(max - min, false);
+    const step = niceNum(range / (targetCount - 1), true);
+    const niceMin = Math.floor(min / step) * step;
+    const niceMax = Math.ceil(max / step) * step;
+    const n = Math.round((niceMax - niceMin) / step);
+    const ticks = [];
+    for (let i = 0; i <= n; i++) ticks.push(parseFloat((niceMin + step * i).toPrecision(10)));
+    return { min: niceMin, max: niceMax, ticks };
+  }
+
+  function fmtTick(n) {
+    const r = parseFloat(n.toPrecision(10));
+    return r.toLocaleString("ja-JP", { maximumFractionDigits: 6 });
+  }
+
+  // ---------- 幾何（座標変換）：ドラッグ時のヒット判定にも使う ----------
+
+  function geomMapX(g, x) { return g.margin.left + (x - g.xDomain.min) / (g.xDomain.max - g.xDomain.min) * g.plotW; }
+  function geomMapY(g, y) { return g.margin.top + g.plotH - (y - g.yDomain.min) / (g.yDomain.max - g.yDomain.min) * g.plotH; }
+  function geomInvX(g, px) { return g.xDomain.min + (px - g.margin.left) / g.plotW * (g.xDomain.max - g.xDomain.min); }
+  function geomInvY(g, py) { return g.yDomain.min + (g.margin.top + g.plotH - py) / g.plotH * (g.yDomain.max - g.yDomain.min); }
+
+  // ---------- データ取得 ----------
+
+  function getPoints(k) {
+    const rows = document.querySelectorAll("#dataBody tr");
+    const col = k === 1 ? "1" : "2";
+    const pts = [];
+    rows.forEach(tr => {
+      const x = parseFloat(tr.querySelector('.cell[data-col="0"]').value);
+      const y = parseFloat(tr.querySelector(`.cell[data-col="${col}"]`).value);
+      if (Number.isFinite(x) && Number.isFinite(y)) pts.push({ x, y });
+    });
+    return pts;
+  }
+
+  // ---------- フィット：関数選択・自動フィット ----------
+
+  function populateTypeSelect(sel) {
+    const noneOpt = document.createElement("option");
+    noneOpt.value = ""; noneOpt.textContent = "－（非表示）";
+    sel.appendChild(noneOpt);
+    Object.keys(FIT_DEFS).forEach(key => {
+      const opt = document.createElement("option");
+      opt.value = key; opt.textContent = FIT_DEFS[key].label;
+      sel.appendChild(opt);
+    });
+    sel.value = "";
+  }
+
+  function seedHandles(k) {
+    const type = fitState[k].type;
+    const def = FIT_DEFS[type];
+    const count = def.params.length;
+    const pts = getPoints(k);
+    let xMin, xMax;
+    if (pts.length) {
+      xMin = Math.min(...pts.map(p => p.x));
+      xMax = Math.max(...pts.map(p => p.x));
+      if (xMin === xMax) { xMin -= 1; xMax += 1; }
+    } else { xMin = 0; xMax = 10; }
+    const fitted = def.fit(pts);
+    const predictor = fitted ? (x => def.predict(x, fitted)) : (x => x);
+    const handles = [];
+    for (let i = 0; i < count; i++) {
+      const t = count === 1 ? 0.5 : i / (count - 1);
+      const x = clampX(type, xMin + (xMax - xMin) * t);
+      let y = predictor(x);
+      if (!isFinite(y)) y = x;
+      y = clampY(type, y);
+      handles.push({ x, y });
+    }
+    fitState[k].handles = handles;
+  }
+
+  [1, 2].forEach(k => {
+    document.getElementById(`fit${k}type`).addEventListener("change", e => {
+      fitState[k].type = e.target.value || null;
+      if (fitState[k].type) seedHandles(k);
+      else fitState[k].handles = [];
+      render();
+    });
+    document.getElementById(`fit${k}auto`).addEventListener("click", () => {
+      if (!fitState[k].type) return;
+      seedHandles(k);
+      render();
+    });
+  });
+
+  // ---------- ドラッグ操作 ----------
+
+  function getCanvasPos(evt) {
+    if (!lastGeom) return null;
+    const canvas = document.getElementById("chart");
+    const rect = canvas.getBoundingClientRect();
+    const t = evt.touches && evt.touches[0];
+    const clientX = t ? t.clientX : evt.clientX;
+    const clientY = t ? t.clientY : evt.clientY;
+    const scaleX = lastGeom.cssW / rect.width;
+    const scaleY = lastGeom.cssH / rect.height;
+    return { px: (clientX - rect.left) * scaleX, py: (clientY - rect.top) * scaleY };
+  }
+
+  function findHandleAt(px, py) {
+    if (!lastGeom) return null;
+    const hitR = 14;
+    let best = null, bestDist = Infinity;
+    [1, 2].forEach(k => {
+      if (!fitState[k].type) return;
+      fitState[k].handles.forEach((h, idx) => {
+        const hx = geomMapX(lastGeom, h.x), hy = geomMapY(lastGeom, h.y);
+        const d = Math.hypot(px - hx, py - hy);
+        if (d <= hitR && d < bestDist) { bestDist = d; best = { series: k, index: idx }; }
+      });
+    });
+    return best;
+  }
+
+  function onPointerDown(evt) {
+    const pos = getCanvasPos(evt);
+    if (!pos) return;
+    const hit = findHandleAt(pos.px, pos.py);
+    if (hit) {
+      dragging = hit;
+      document.getElementById("chart").style.cursor = "grabbing";
+      evt.preventDefault();
+    }
+  }
+
+  function onPointerMove(evt) {
+    const pos = getCanvasPos(evt);
+    if (!pos) return;
+    if (dragging) {
+      const type = fitState[dragging.series].type;
+      let x = geomInvX(lastGeom, pos.px);
+      let y = geomInvY(lastGeom, pos.py);
+      x = Math.min(Math.max(x, lastGeom.xDomain.min), lastGeom.xDomain.max);
+      y = Math.min(Math.max(y, lastGeom.yDomain.min), lastGeom.yDomain.max);
+      x = clampX(type, x);
+      y = clampY(type, y);
+      fitState[dragging.series].handles[dragging.index] = { x, y };
+      render();
+      evt.preventDefault();
+    } else {
+      const hit = findHandleAt(pos.px, pos.py);
+      document.getElementById("chart").style.cursor = hit ? "grab" : "default";
+    }
+  }
+
+  function onPointerUp() {
+    if (dragging) {
+      dragging = null;
+      document.getElementById("chart").style.cursor = "default";
+      render();
+    }
+  }
+
+  // ---------- 描画 ----------
+
+  function drawAxisLabelH(ctx, sym, unit, cx, y) {
+    ctx.textBaseline = "alphabetic";
+    ctx.textAlign = "left";
+    const symFont = 'italic 16px "Times New Roman", Times, serif';
+    const unitFont = "13px system-ui, -apple-system, sans-serif";
+    ctx.font = symFont;
+    const symW = ctx.measureText(sym).width;
+    const unitText = unit ? ` [${unit}]` : "";
+    ctx.font = unitFont;
+    const unitW = ctx.measureText(unitText).width;
+    let x = cx - (symW + unitW) / 2;
+    ctx.fillStyle = COLORS.inkSecondary;
+    ctx.font = symFont;
+    ctx.fillText(sym, x, y);
+    x += symW;
+    ctx.font = unitFont;
+    ctx.fillText(unitText, x, y);
+  }
+
+  function drawAxisLabelV(ctx, sym, unit, cx, cy) {
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.rotate(-Math.PI / 2);
+    ctx.textBaseline = "alphabetic";
+    ctx.textAlign = "left";
+    const symFont = 'italic 16px "Times New Roman", Times, serif';
+    const unitFont = "13px system-ui, -apple-system, sans-serif";
+    ctx.font = symFont;
+    const symW = ctx.measureText(sym).width;
+    const unitText = unit ? ` [${unit}]` : "";
+    ctx.font = unitFont;
+    const unitW = ctx.measureText(unitText).width;
+    let x = -(symW + unitW) / 2;
+    ctx.fillStyle = COLORS.inkSecondary;
+    ctx.font = symFont;
+    ctx.fillText(sym, x, 0);
+    x += symW;
+    ctx.font = unitFont;
+    ctx.fillText(unitText, x, 0);
+    ctx.restore();
+  }
+
+  function drawChart() {
+    const canvas = document.getElementById("chart");
+    const ctx = canvas.getContext("2d");
+    const cssW = 760, cssH = 460;
+    const dpr = window.devicePixelRatio || 1;
+    if (canvas.width !== Math.round(cssW * dpr) || canvas.height !== Math.round(cssH * dpr)) {
+      canvas.width = Math.round(cssW * dpr);
+      canvas.height = Math.round(cssH * dpr);
+      canvas.style.width = cssW + "px";
+      canvas.style.height = cssH + "px";
+    }
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, cssW, cssH);
+    ctx.fillStyle = COLORS.surface;
+    ctx.fillRect(0, 0, cssW, cssH);
+
+    const pts1 = getPoints(1);
+    const pts2 = getPoints(2);
+    const allX = [...pts1.map(d => d.x), ...pts2.map(d => d.x)];
+    const allY = [...pts1.map(d => d.y), ...pts2.map(d => d.y)];
+
+    const margin = { left: 68, right: 24, top: 20, bottom: 54 };
+    const plotW = cssW - margin.left - margin.right;
+    const plotH = cssH - margin.top - margin.bottom;
+
+    const xDomain = allX.length ? niceTicks(Math.min(...allX), Math.max(...allX), 6) : niceTicks(0, 10, 6);
+    const yDomain = allY.length ? niceTicks(Math.min(...allY), Math.max(...allY), 6) : niceTicks(0, 10, 6);
+
+    const g = { margin, xDomain, yDomain, plotW, plotH, cssW, cssH };
+    const mapX = x => geomMapX(g, x);
+    const mapY = y => geomMapY(g, y);
+
+    // グリッド線
+    ctx.strokeStyle = COLORS.grid;
+    ctx.lineWidth = 1;
+    xDomain.ticks.forEach(t => {
+      const x = mapX(t);
+      ctx.beginPath(); ctx.moveTo(x, margin.top); ctx.lineTo(x, margin.top + plotH); ctx.stroke();
+    });
+    yDomain.ticks.forEach(t => {
+      const y = mapY(t);
+      ctx.beginPath(); ctx.moveTo(margin.left, y); ctx.lineTo(margin.left + plotW, y); ctx.stroke();
+    });
+
+    // 軸
+    ctx.strokeStyle = COLORS.baseline;
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(margin.left, margin.top + plotH); ctx.lineTo(margin.left + plotW, margin.top + plotH); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(margin.left, margin.top); ctx.lineTo(margin.left, margin.top + plotH); ctx.stroke();
+
+    // 目盛りラベル
+    ctx.fillStyle = COLORS.muted;
+    ctx.font = "12px system-ui, -apple-system, sans-serif";
+    ctx.textAlign = "center"; ctx.textBaseline = "top";
+    xDomain.ticks.forEach(t => ctx.fillText(fmtTick(t), mapX(t), margin.top + plotH + 6));
+    ctx.textAlign = "right"; ctx.textBaseline = "middle";
+    yDomain.ticks.forEach(t => ctx.fillText(fmtTick(t), margin.left - 8, mapY(t)));
+
+    // 軸ラベル
+    const xSym = document.getElementById("xSym").value.trim() || "x";
+    const xUnit = document.getElementById("xUnit").value.trim();
+    const ySym = document.getElementById("ySym").value.trim() || "y";
+    const yUnit = document.getElementById("yUnit").value.trim();
+    drawAxisLabelH(ctx, xSym, xUnit, margin.left + plotW / 2, cssH - 12);
+    drawAxisLabelV(ctx, ySym, yUnit, 14, margin.top + plotH / 2);
+
+    if (allX.length === 0) {
+      ctx.fillStyle = COLORS.muted;
+      ctx.font = "14px system-ui, -apple-system, sans-serif";
+      ctx.textAlign = "center"; ctx.textBaseline = "middle";
+      ctx.fillText("データを入力するとグラフが表示されます", margin.left + plotW / 2, margin.top + plotH / 2);
+    }
+
+    // フィット曲線（プロット領域にクリップ）
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(margin.left, margin.top, plotW, plotH);
+    ctx.clip();
+    [1, 2].forEach(k => {
+      const type = fitState[k].type;
+      if (!type) return;
+      const def = FIT_DEFS[type];
+      const params = def.solveExact(fitState[k].handles);
+      ctx.strokeStyle = k === 1 ? COLORS.series1 : COLORS.series2;
+      ctx.lineWidth = 2;
+      ctx.lineJoin = "round";
+      ctx.lineCap = "round";
+      ctx.beginPath();
+      let started = false;
+      const steps = 240;
+      for (let i = 0; i <= steps; i++) {
+        const x = xDomain.min + (xDomain.max - xDomain.min) * i / steps;
+        const y = def.predict(x, params);
+        if (!isFinite(y)) { started = false; continue; }
+        const px = mapX(x), py = mapY(y);
+        if (!started) { ctx.moveTo(px, py); started = true; } else { ctx.lineTo(px, py); }
+      }
+      ctx.stroke();
+    });
+    ctx.restore();
+
+    // データ点
+    function drawMarkers(pts, color) {
+      pts.forEach(({ x, y }) => {
+        const px = mapX(x), py = mapY(y);
+        ctx.beginPath();
+        ctx.arc(px, py, 5, 0, Math.PI * 2);
+        ctx.fillStyle = color;
+        ctx.fill();
+        ctx.lineWidth = 2;
+        ctx.strokeStyle = COLORS.surface;
+        ctx.stroke();
+      });
+    }
+    drawMarkers(pts1, COLORS.series1);
+    drawMarkers(pts2, COLORS.series2);
+
+    // ドラッグ用ハンドル（曲線上の操作点）
+    [1, 2].forEach(k => {
+      const type = fitState[k].type;
+      if (!type) return;
+      const color = k === 1 ? COLORS.series1 : COLORS.series2;
+      fitState[k].handles.forEach((h, idx) => {
+        const px = mapX(h.x), py = mapY(h.y);
+        const isDragging = dragging && dragging.series === k && dragging.index === idx;
+
+        if (isDragging) {
+          ctx.save();
+          ctx.setLineDash([4, 4]);
+          ctx.strokeStyle = COLORS.muted;
+          ctx.lineWidth = 1;
+          ctx.beginPath(); ctx.moveTo(px, margin.top + plotH); ctx.lineTo(px, py); ctx.stroke();
+          ctx.beginPath(); ctx.moveTo(margin.left, py); ctx.lineTo(px, py); ctx.stroke();
+          ctx.restore();
+        }
+
+        ctx.beginPath();
+        ctx.arc(px, py, isDragging ? 9 : 7, 0, Math.PI * 2);
+        ctx.fillStyle = color;
+        ctx.fill();
+        ctx.lineWidth = 3;
+        ctx.strokeStyle = COLORS.surface;
+        ctx.stroke();
+
+        if (isDragging) {
+          const label = `(${fmt(h.x)}, ${fmt(h.y)})`;
+          ctx.font = "12px system-ui, -apple-system, sans-serif";
+          const w = ctx.measureText(label).width;
+          let lx = px + 12;
+          const ly = py - 14;
+          if (lx + w + 8 > margin.left + plotW) lx = px - 12 - w - 8;
+          ctx.fillStyle = "rgba(11,11,11,0.82)";
+          ctx.fillRect(lx - 4, ly - 14, w + 8, 18);
+          ctx.fillStyle = "#fff";
+          ctx.textAlign = "left"; ctx.textBaseline = "middle";
+          ctx.fillText(label, lx, ly - 5);
+        }
+      });
+    });
+
+    lastGeom = g;
+  }
+
+  // ---------- 数式・R² 表示 ----------
+
+  function updateNamesUI() {
+    const n1 = document.getElementById("s1Name").value.trim() || "系列1";
+    const n2 = document.getElementById("s2Name").value.trim() || "系列2";
+    document.getElementById("legendName1").textContent = n1;
+    document.getElementById("legendName2").textContent = n2;
+    document.getElementById("thY1").textContent = n1;
+    document.getElementById("thY2").textContent = n2;
+    document.getElementById("fit1title").textContent = n1;
+    document.getElementById("fit2title").textContent = n2;
+  }
+
+  function updateEqDisplays() {
+    [1, 2].forEach(k => {
+      const type = fitState[k].type;
+      const eqEl = document.getElementById(`fit${k}eq`);
+      const r2El = document.getElementById(`fit${k}r2`);
+      if (!type) {
+        eqEl.innerHTML = "";
+        r2El.textContent = "R² = —";
+        return;
+      }
+      const def = FIT_DEFS[type];
+      const params = def.solveExact(fitState[k].handles);
+      eqEl.innerHTML = def.eq(params);
+      const pts = getPoints(k);
+      const r2 = computeR2(def, params, pts);
+      r2El.textContent = r2 === null ? "R² = —" : `R² = ${r2.toFixed(4)}`;
+    });
+  }
+
+  function render() {
+    updateNamesUI();
+    updateEqDisplays();
+    drawChart();
+  }
+
+  // ---------- スプレッドシート風データ表 ----------
+
+  function createRow(rowNum) {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td class="rownum">${rowNum}</td>
+      <td><input type="text" inputmode="decimal" class="cell" data-col="0"></td>
+      <td><input type="text" inputmode="decimal" class="cell" data-col="1"></td>
+      <td><input type="text" inputmode="decimal" class="cell" data-col="2"></td>
+      <td><button type="button" class="del-row" title="この行を削除">×</button></td>
+    `;
+    return tr;
+  }
+
+  function renumberRows() {
+    document.querySelectorAll("#dataBody tr").forEach((tr, i) => {
+      tr.querySelector(".rownum").textContent = i + 1;
+    });
+  }
+
+  function addRow() {
+    const tbody = document.getElementById("dataBody");
+    const tr = createRow(tbody.rows.length + 1);
+    tbody.appendChild(tr);
+    return tr;
+  }
+
+  function initTable(n) {
+    const tbody = document.getElementById("dataBody");
+    tbody.innerHTML = "";
+    for (let i = 0; i < n; i++) tbody.appendChild(createRow(i + 1));
+  }
+
+  document.getElementById("addRowBtn").addEventListener("click", addRow);
+
+  document.getElementById("clearBtn").addEventListener("click", () => {
+    if (!confirm("入力したデータをすべて消去します。よろしいですか？")) return;
+    document.querySelectorAll("#dataBody .cell").forEach(inp => (inp.value = ""));
+    render();
+  });
+
+  document.getElementById("dataBody").addEventListener("input", e => {
+    if (e.target.matches(".cell")) render();
+  });
+
+  document.getElementById("dataBody").addEventListener("click", e => {
+    if (e.target.matches(".del-row")) {
+      const tbody = document.getElementById("dataBody");
+      if (tbody.rows.length > 1) {
+        e.target.closest("tr").remove();
+        renumberRows();
+        render();
+      }
+    }
+  });
+
+  // 矢印キーでセル移動（スプレッドシートと同じ操作感）
+  document.getElementById("dataBody").addEventListener("keydown", e => {
+    const cell = e.target;
+    if (!cell.matches(".cell")) return;
+    const tbody = document.getElementById("dataBody");
+    const rows = Array.from(tbody.rows);
+    const tr = cell.closest("tr");
+    const rowIdx = rows.indexOf(tr);
+    const col = parseInt(cell.dataset.col, 10);
+
+    function focusCell(r, c) {
+      if (r < 0 || r >= rows.length || c < 0 || c > 2) return;
+      const target = rows[r].querySelector(`.cell[data-col="${c}"]`);
+      if (target) { target.focus(); target.select(); }
+    }
+
+    switch (e.key) {
+      case "ArrowUp":
+        focusCell(rowIdx - 1, col); e.preventDefault(); break;
+      case "ArrowDown":
+        focusCell(rowIdx + 1, col); e.preventDefault(); break;
+      case "ArrowLeft":
+        if (cell.selectionStart === 0) { focusCell(rowIdx, col - 1); e.preventDefault(); }
+        break;
+      case "ArrowRight":
+        if (cell.selectionEnd === cell.value.length) { focusCell(rowIdx, col + 1); e.preventDefault(); }
+        break;
+      case "Enter":
+        if (rowIdx === rows.length - 1 && col === 2) {
+          const newRow = addRow();
+          newRow.querySelector('.cell[data-col="0"]').focus();
+        } else {
+          focusCell(rowIdx + 1, col);
+        }
+        e.preventDefault();
+        break;
+    }
+  });
+
+  // 表計算ソフトからの貼り付け（タブ区切り・複数セル）に対応
+  document.getElementById("dataBody").addEventListener("paste", e => {
+    const cell = e.target;
+    if (!cell.matches(".cell")) return;
+    const text = (e.clipboardData || window.clipboardData).getData("text");
+    if (!text.includes("\t") && !text.includes("\n")) return; // 単一値は通常のペーストに任せる
+    e.preventDefault();
+
+    const startCol = parseInt(cell.dataset.col, 10);
+    const tbody = document.getElementById("dataBody");
+    let rows = Array.from(tbody.rows);
+    const startRow = rows.indexOf(cell.closest("tr"));
+
+    const lines = text.replace(/\r/g, "").split("\n").filter((line, i, arr) => !(i === arr.length - 1 && line === ""));
+    lines.forEach((line, ri) => {
+      const cells = line.split("\t");
+      const targetRowIdx = startRow + ri;
+      while (targetRowIdx >= rows.length) { addRow(); rows = Array.from(tbody.rows); }
+      cells.forEach((val, ci) => {
+        const targetCol = startCol + ci;
+        if (targetCol > 2) return;
+        const targetCell = rows[targetRowIdx].querySelector(`.cell[data-col="${targetCol}"]`);
+        if (targetCell) targetCell.value = val.trim();
+      });
+    });
+    render();
+  });
+
+  document.getElementById("labelsBox").addEventListener("input", render);
+
+  // ---------- 初期化 ----------
+
+  populateTypeSelect(document.getElementById("fit1type"));
+  populateTypeSelect(document.getElementById("fit2type"));
+  initTable(20);
+
+  const canvasEl = document.getElementById("chart");
+  canvasEl.addEventListener("mousedown", onPointerDown);
+  canvasEl.addEventListener("mousemove", onPointerMove);
+  window.addEventListener("mouseup", onPointerUp);
+  canvasEl.addEventListener("touchstart", onPointerDown, { passive: false });
+  canvasEl.addEventListener("touchmove", onPointerMove, { passive: false });
+  window.addEventListener("touchend", onPointerUp);
+
+  render();
+})();
+</script>
+</body>
+</html>
