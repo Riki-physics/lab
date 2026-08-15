@@ -1,0 +1,73 @@
+name: freeze
+
+# 公開済みファイルが変更されたら，自動で元の内容に巻き戻す。
+# 対象は .github/frozen.txt に記載されたファイル。
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  revert:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: 凍結ファイルの変更を巻き戻す
+        env:
+          BEFORE: ${{ github.event.before }}
+        run: |
+          set -uo pipefail
+
+          if [ -z "${BEFORE}" ] || [ "${BEFORE}" = "0000000000000000000000000000000000000000" ]; then
+            echo "初回 push もしくは強制 push のため判定をスキップします"
+            exit 0
+          fi
+          if ! git cat-file -e "${BEFORE}^{commit}" 2>/dev/null; then
+            echo "直前のコミットを取得できないため判定をスキップします"
+            exit 0
+          fi
+
+          # 凍結リストは push 前の状態から読む（リスト自体の改変による回避を防ぐため）
+          if git cat-file -e "${BEFORE}:.github/frozen.txt" 2>/dev/null; then
+            list=$(git show "${BEFORE}:.github/frozen.txt")
+          else
+            list=$(cat .github/frozen.txt)
+          fi
+
+          changed=()
+          while IFS= read -r f; do
+            case "$f" in ''|\#*) continue ;; esac
+            if ! git diff --quiet "${BEFORE}" "${GITHUB_SHA}" -- "$f"; then
+              changed+=("$f")
+            fi
+          done <<< "$list"
+
+          if [ "${#changed[@]}" -eq 0 ]; then
+            echo "凍結ファイルへの変更はありません"
+            exit 0
+          fi
+
+          echo "::warning::凍結ファイルが変更されました: ${changed[*]} — 自動で巻き戻します"
+
+          for f in "${changed[@]}"; do
+            if git cat-file -e "${BEFORE}:$f" 2>/dev/null; then
+              git checkout "${BEFORE}" -- "$f"
+            else
+              git rm -f --ignore-unmatch "$f"
+            fi
+          done
+
+          git config user.name "freeze-bot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "[skip ci] 凍結ファイルの変更を自動で巻き戻しました: ${changed[*]}
+
+公開済みのため .github/frozen.txt で変更を禁止しています。
+修正が必要な場合は，新しい YYYYMM を付けたファイル名で追加してください。"
+          git push origin "HEAD:main"
+          echo "巻き戻し完了: ${changed[*]}"
