@@ -7,4 +7,3 @@ acceleration202512.html
 tapmotion202512.html
 trigonometric202512.html
 doppler202604.html
-__freeze_test.html
