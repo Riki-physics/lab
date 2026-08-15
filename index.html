@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>lab — 授業・実験用 Web ツール</title>
+<style>
+  :root{
+    --bg:#fbfbfa; --card:#fff; --line:#e3e3df; --ink:#2b2b2b;
+    --sub:#6b6b66; --accent:#0b6bcb; --chip:#eef2f6;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{ --bg:#1a1a19; --card:#242423; --line:#3a3a38; --ink:#e8e8e5;
+           --sub:#a0a09a; --accent:#7ab6ff; --chip:#2f3236; }
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0; background:var(--bg); color:var(--ink);
+    font-family:-apple-system,"Hiragino Sans","Noto Sans JP",system-ui,sans-serif;
+    line-height:1.8; padding:0 1.2rem 5rem;
+  }
+  .wrap{max-width:52rem;margin:0 auto}
+  header{padding:3.5rem 0 2rem;border-bottom:1px solid var(--line)}
+  h1{margin:0 0 .4rem;font-size:1.9rem;letter-spacing:.02em}
+  .lead{margin:0;color:var(--sub);font-size:.96rem}
+  h2{
+    font-size:1.05rem;margin:2.6rem 0 .9rem;padding-bottom:.4rem;
+    border-bottom:1px solid var(--line);letter-spacing:.04em;
+  }
+  ul{list-style:none;margin:0;padding:0;display:grid;gap:.7rem}
+  li a{
+    display:flex;flex-wrap:wrap;align-items:baseline;gap:.6rem;
+    background:var(--card);border:1px solid var(--line);border-radius:9px;
+    padding:.85rem 1.05rem;text-decoration:none;color:inherit;
+    transition:border-color .15s, transform .15s;
+  }
+  li a:hover{border-color:var(--accent);transform:translateY(-1px)}
+  .name{font-weight:600;font-size:1.02rem}
+  .desc{color:var(--sub);font-size:.88rem;flex:1 1 100%}
+  .date{
+    margin-left:auto;font-size:.76rem;color:var(--sub);
+    background:var(--chip);border-radius:99px;padding:.15rem .6rem;white-space:nowrap;
+  }
+  var{font-family:"Times New Roman",Times,serif;font-style:italic}
+  footer{
+    margin-top:3.5rem;padding-top:1.4rem;border-top:1px solid var(--line);
+    color:var(--sub);font-size:.85rem;
+  }
+  footer p{margin:.4rem 0}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <h1>lab</h1>
+  <p class="lead">授業と実験で使う Web ツールを置いています。すべてブラウザだけで動きます。</p>
+</header>
+
+<h2>測定・計測</h2>
+<ul>
+  <li><a href="gravity202601.html">
+    <span class="name">重力加速度を測ろう</span><span class="date">2026年1月</span>
+    <span class="desc">スマホを落として重力加速度を求める実験用。</span></a></li>
+  <li><a href="acceleration202512.html">
+    <span class="name">加速度センサー xyz</span><span class="date">2025年12月</span>
+    <span class="desc">スマホの3軸加速度を重力補正つきで表示・記録する。</span></a></li>
+  <li><a href="tapmotion202512.html">
+    <span class="name">等間隔マーカー実験</span><span class="date">2025年12月</span>
+    <span class="desc">タップの間隔から <var>x</var>–<var>t</var> グラフと <var>v</var>–<var>t</var> グラフを描く。</span></a></li>
+  <li><a href="fft202512.html">
+    <span class="name">FFT ピーク周波数と音名</span><span class="date">2025年12月</span>
+    <span class="desc">マイク入力の周波数解析。ピークをドレミの音名で表示する。</span></a></li>
+  <li><a href="doppler202604.html">
+    <span class="name">Doppler <var>F</var>–<var>t</var> Logger</span><span class="date">2026年4月</span>
+    <span class="desc">ドップラー効果の測定と記録。</span></a></li>
+  <li><a href="white_noise202508.html">
+    <span class="name">ホワイトノイズジェネレーター</span><span class="date">2025年8月</span>
+    <span class="desc">音の実験用にホワイトノイズを鳴らす。</span></a></li>
+</ul>
+
+<h2>学習・演習</h2>
+<ul>
+  <li><a href="formula202605.html">
+    <span class="name">物理公式クイズ</span><span class="date">2026年5月</span>
+    <span class="desc">公式の穴埋め形式で確認する。</span></a></li>
+  <li><a href="periodictable202602.html">
+    <span class="name">周期表タイムアタック</span><span class="date">2026年2月</span>
+    <span class="desc">元素記号と原子番号1〜20をタイムアタック形式で覚える。</span></a></li>
+  <li><a href="trigonometric202512.html">
+    <span class="name">三角関数 右三角形ツール</span><span class="date">2025年12月</span>
+    <span class="desc">直角三角形の辺と角の関係を動かして確かめる。プロジェクター用。</span></a></li>
+</ul>
+
+<h2>授業運用</h2>
+<ul>
+  <li><a href="changeseats202601.html">
+    <span class="name">席替えメーカー 8×8</span><span class="date">2026年1月</span>
+    <span class="desc">クラス授業・選択授業に対応した座席表の作成。</span></a></li>
+  <li><a href="roulette202604.html">
+    <span class="name">生徒指名システム</span><span class="date">2026年4月</span>
+    <span class="desc">ルーレット形式で指名する。</span></a></li>
+</ul>
+
+<footer>
+  <p>ファイル名の末尾は公開した年月です（例 <code>fft202512.html</code> は2025年12月公開）。</p>
+  <p>公開したページは内容を書き換えません。改訂するときは新しい年月をつけた別のページとして追加します。以前に配布したリンクはそのまま使えます。</p>
+</footer>
+
+</div>
+</body>
+</html>
