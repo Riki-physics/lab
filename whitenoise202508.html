@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ホワイトノイズジェネレーター</title>
+    <style>
+      body {
+        font-family: sans-serif;
+        background: #f9f9f9;
+        margin: 0;
+        padding: 0;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        height: 100vh;
+      }
+      .container {
+        background: #fff;
+        padding: 2rem;
+        border-radius: 8px;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        text-align: center;
+      }
+      button {
+        margin: 0.5rem;
+        padding: 0.75rem 1.5rem;
+        font-size: 1rem;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        transition: background 0.3s;
+      }
+      button.play {
+        background-color: #007bff;
+        color: white;
+      }
+      button.play:hover {
+        background-color: #0056b3;
+      }
+      button.stop {
+        background-color: #dc3545;
+        color: white;
+      }
+      button.stop:hover {
+        background-color: #a71d2a;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h1>ホワイトノイズジェネレーター</h1>
+      <p>
+        下のボタンを使ってホワイトノイズ（200&nbsp;Hz〜2000&nbsp;Hzの周波数帯域のみを含む）の再生と停止を行います。
+      </p>
+      <button class="play" id="playButton">再生</button>
+      <button class="stop" id="stopButton">停止</button>
+    </div>
+    <script>
+      // Web Audio API を利用してホワイトノイズを生成する
+      // AudioContext はブラウザにより名前が異なる場合があるため互換性を確保する
+      const AudioContext = window.AudioContext || window.webkitAudioContext;
+      const audioCtx = new AudioContext();
+
+      // 2秒間のノイズバッファを作成し、ループ再生させる
+      // Web Audio API ではバッファにランダムな値を詰めることで白色雑音を生成できる
+      //【444840396366805†L46-L59】【23272804258992†L488-L505】
+      const bufferSize = audioCtx.sampleRate * 2; // 2秒分のバッファ
+      const noiseBuffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+      const output = noiseBuffer.getChannelData(0);
+      for (let i = 0; i < bufferSize; i++) {
+        // -1.0〜1.0の範囲でランダム値を生成してバッファに格納
+        output[i] = Math.random() * 2 - 1;
+      }
+
+      let whiteNoiseSource = null;
+
+      function playNoise() {
+        // 既に再生中なら新たに生成しない
+        if (whiteNoiseSource) return;
+        whiteNoiseSource = audioCtx.createBufferSource();
+        whiteNoiseSource.buffer = noiseBuffer;
+        whiteNoiseSource.loop = true;
+        // フィルタで200Hz〜2000Hzの周波数帯域に限定する
+        // highpassフィルタはカットオフより上の周波数を通過させ、低い周波数を減衰させる【478863113300252†L167-L185】。
+        // lowpassフィルタはカットオフより下の周波数を通過させ、高い周波数を減衰させる【478863113300252†L167-L171】。
+        const highpass = audioCtx.createBiquadFilter();
+        highpass.type = 'highpass';
+        highpass.frequency.value = 200;
+        const lowpass = audioCtx.createBiquadFilter();
+        lowpass.type = 'lowpass';
+        lowpass.frequency.value = 2000;
+        // 接続: ノイズ -> highpass -> lowpass -> 出力
+        whiteNoiseSource.connect(highpass).connect(lowpass).connect(audioCtx.destination);
+        whiteNoiseSource.start(0);
+      }
+
+      function stopNoise() {
+        if (whiteNoiseSource) {
+          whiteNoiseSource.stop();
+          whiteNoiseSource.disconnect();
+          whiteNoiseSource = null;
+        }
+      }
+
+      // ボタンにイベントハンドラを設定
+      document.getElementById('playButton').addEventListener('click', () => {
+        // ユーザー操作のもとで AudioContext を再開し、ノイズを再生
+        if (audioCtx.state === 'suspended') {
+          audioCtx.resume();
+        }
+        playNoise();
+      });
+      document.getElementById('stopButton').addEventListener('click', () => {
+        stopNoise();
+      });
+    </script>
+  </body>
+</html>

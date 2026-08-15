@@ -1,0 +1,653 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>生徒指名システム</title>
+<style>
+  :root {
+    --bg: #ffffff;
+    --bg-soft: #f3f4f6;
+    --accent: #2563eb;
+    --accent-soft: #3b82f6;
+    --accent-strong: #1d4ed8;
+    --text-main: #111827;
+    --text-muted: #4b5563;
+    --border-subtle: #d1d5db;
+  }
+
+  * {
+    box-sizing: border-box;
+  }
+
+  body { 
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    margin: 0;
+    padding: 24px 16px;
+    background: var(--bg-soft);
+    color: var(--text-main);
+    display: flex;
+    justify-content: center;
+  }
+
+  .app {
+    width: 100%;
+    max-width: 1080px;
+    background: #ffffff;
+    border-radius: 12px;
+    padding: 20px 20px 24px;
+    border: 1px solid var(--border-subtle);
+  }
+
+  header {
+    text-align: center;
+    margin-bottom: 16px;
+  }
+
+  header h1 {
+    margin: 0 0 4px;
+    font-size: 2.3rem;
+    letter-spacing: 0.08em;
+  }
+
+  header .subtitle {
+    font-size: 0.9rem;
+    color: var(--text-muted);
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+  }
+
+  .mode-section {
+    display: inline-flex;
+    gap: 8px;
+    padding: 6px;
+    border-radius: 999px;
+    background: #ffffff;
+    border: 1px solid var(--border-subtle);
+    margin: 16px auto 6px;
+  }
+
+  .mode-pill {
+    position: relative;
+  }
+
+  .mode-pill input {
+    display: none;
+  }
+
+  .mode-pill span {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 6px 16px;
+    border-radius: 999px;
+    font-size: 0.95rem;
+    cursor: pointer;
+    color: var(--text-muted);
+    transition: background 0.15s ease, color 0.15s ease;
+  }
+
+  .mode-pill input:checked + span {
+    background: var(--accent-soft);
+    color: #ffffff;
+    font-weight: 600;
+  }
+
+  .top-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 360px;
+    gap: 16px;
+    margin-top: 8px;
+    align-items: stretch;
+  }
+
+  @media (max-width: 900px) {
+    .top-layout {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  .card {
+    padding: 12px 12px 14px;
+    border-radius: 10px;
+    background: #ffffff;
+    border: 1px solid var(--border-subtle);
+  }
+
+  .card-title {
+    font-size: 1rem;
+    margin-bottom: 6px;
+    color: var(--text-main);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-weight: 600;
+  }
+
+  .card-title span.icon {
+    font-size: 1.2em;
+  }
+
+  textarea {
+    width: 100%;
+    background: #ffffff;
+    color: var(--text-main);
+    border: 1px solid var(--border-subtle);
+    border-radius: 8px;
+    font-size: 1rem;
+    padding: 8px 10px;
+    resize: vertical;
+    outline: none;
+    line-height: 1.5;
+    min-height: 220px;
+  }
+
+  textarea:focus {
+    border-color: var(--accent);
+  }
+
+  .helper-text {
+    font-size: 0.9rem;
+    color: var(--text-muted);
+    margin-top: 4px;
+    line-height: 1.5;
+  }
+
+  .small-btn {
+    margin-top: 8px;
+    padding: 6px 12px;
+    font-size: 0.9rem;
+    background: #f9fafb;
+    border-radius: 999px;
+    border: 1px solid var(--border-subtle);
+    color: var(--text-main);
+    cursor: pointer;
+  }
+
+  .small-btn:hover {
+    background: #e5e7eb;
+  }
+
+  .big-winner-card {
+    min-height: 100%;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+  }
+
+  .big-winner-box {
+    flex: 1;
+    margin-top: 4px;
+    border-radius: 16px;
+    border: 2px solid var(--accent-soft);
+    background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    padding: 24px 16px;
+    text-align: center;
+    box-shadow: 0 10px 24px rgba(37, 99, 235, 0.12);
+    min-height: 280px;
+  }
+
+  .big-winner-box.show {
+    animation: popWinner 0.45s ease;
+  }
+
+  .big-winner-label {
+    font-size: 0.95rem;
+    color: var(--text-muted);
+    letter-spacing: 0.18em;
+    margin-bottom: 10px;
+    font-weight: 700;
+  }
+
+  .big-winner-name {
+    font-size: clamp(3rem, 5.8vw, 5.5rem);
+    font-weight: 900;
+    line-height: 1.08;
+    color: var(--accent-strong);
+    word-break: break-word;
+  }
+
+  .big-winner-direction {
+    margin-top: 18px;
+    font-size: clamp(1.4rem, 3vw, 2.2rem);
+    font-weight: 800;
+    line-height: 1.3;
+    color: var(--text-main);
+    word-break: break-word;
+  }
+
+  .big-winner-sub {
+    margin-top: 12px;
+    font-size: 0.95rem;
+    color: var(--text-muted);
+    line-height: 1.5;
+  }
+
+  @keyframes popWinner {
+    0% {
+      transform: scale(0.78);
+      opacity: 0;
+    }
+    60% {
+      transform: scale(1.05);
+      opacity: 1;
+    }
+    100% {
+      transform: scale(1);
+    }
+  }
+
+  .controls {
+    margin-top: 18px;
+    display: flex;
+    justify-content: center;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+
+  button.main-btn { 
+    font-size: 1.1rem; 
+    padding: 10px 30px; 
+    border-radius: 999px; 
+    border: none;
+    cursor: pointer;
+    background: var(--accent-strong);
+    color: #ffffff;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+  }
+
+  button.main-btn:disabled {
+    opacity: 0.5;
+    cursor: default;
+  }
+
+  button.secondary-btn { 
+    font-size: 1rem; 
+    padding: 10px 22px; 
+    border-radius: 999px; 
+    border: 1px solid var(--border-subtle);
+    background: #f9fafb;
+    color: var(--text-main);
+    cursor: pointer;
+  }
+
+  button.secondary-btn:hover {
+    background: #e5e7eb;
+  }
+
+  #roulette {
+    font-size: 2rem;
+    font-weight: 700;
+    margin: 20px auto 8px;
+    padding: 12px;
+    border-radius: 10px;
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+    width: 100%;
+    max-width: 760px;
+    background: #ffffff;
+    border: 2px solid var(--border-subtle);
+    flex-wrap: nowrap;
+  }
+
+  .slot {
+    flex: 1;
+    min-width: 0;
+    padding: 16px 8px;
+    text-align: center;
+    border-radius: 8px;
+    background: #f9fafb;
+    border: 1px solid var(--border-subtle);
+    font-size: 1.35rem;
+    font-weight: 700;
+    line-height: 1.3;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .active {
+    background: var(--accent-soft);
+    border-color: var(--accent-soft);
+    color: #ffffff;
+  }
+
+  .winner {
+    background: var(--accent-strong);
+    border-color: var(--accent-strong);
+    color: #ffffff;
+  }
+
+  #result {
+    font-size: 1.4rem;
+    margin: 10px 0 6px;
+    text-align: center;
+    line-height: 1.5;
+  }
+
+  #result span.label {
+    font-size: 0.9rem;
+    text-transform: uppercase;
+    letter-spacing: 0.16em;
+    color: var(--text-muted);
+    display: block;
+    margin-bottom: 2px;
+  }
+
+  #result b {
+    font-size: 2rem;
+    word-break: break-word;
+  }
+
+  #chosenList, #remainingInfo {
+    font-size: 1rem;
+    text-align: center;
+    color: var(--text-muted);
+    line-height: 1.5;
+  }
+
+  #chosenList {
+    margin-top: 6px;
+    word-break: break-word;
+  }
+
+  #remainingInfo {
+    margin-top: 2px;
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <h1>生徒指名システム</h1>
+    <div class="subtitle">RANDOM STUDENT CALL SYSTEM</div>
+
+    <div class="mode-section">
+      <label class="mode-pill">
+        <input type="radio" name="mode" value="class" checked onchange="switchMode()">
+        <span>クラス授業</span>
+      </label>
+      <label class="mode-pill">
+        <input type="radio" name="mode" value="select" onchange="switchMode()">
+        <span>選択授業</span>
+      </label>
+    </div>
+  </header>
+
+  <div class="top-layout">
+    <div>
+      <div id="classMode" class="card">
+        <div class="card-title">
+          <span class="icon">👥</span>
+          <span>クラス名簿</span>
+        </div>
+        <textarea id="classList" placeholder="例：
+山田太郎
+佐藤花子
+鈴木一郎"></textarea>
+        <div class="helper-text">
+          1行に1人ずつ入力してください。<br>
+          空白区切りでも読み取れますが，氏名に空白が入る場合は改行入力が確実です。<br>
+          未入力のときはサンプル名簿を使用します。
+        </div>
+        <button class="small-btn" onclick="clearClassList()">入力をクリア</button>
+      </div>
+
+      <div id="selectMode" class="card" style="display:none;">
+        <div class="card-title">
+          <span class="icon">🧾</span>
+          <span>名前リスト（テキスト貼り付け可）</span>
+        </div>
+        <textarea id="nameList" placeholder="例：
+山田太郎
+佐藤花子
+鈴木一郎"></textarea>
+        <div class="helper-text">
+          1行に1人ずつ入力するのがおすすめです。<br>
+          改行または空白区切りで読み取ります。<br>
+          未入力のときはサンプル名簿を使用します。
+        </div>
+        <button class="small-btn" onclick="clearSelectList()">入力をクリア</button>
+      </div>
+    </div>
+
+    <div class="card big-winner-card">
+      <div class="card-title">
+        <span class="icon">🎯</span>
+        <span>今回の指名</span>
+      </div>
+      <div id="bigWinnerBox" class="big-winner-box">
+        <div class="big-winner-label">SELECTED</div>
+        <div id="bigWinnerName" class="big-winner-name">---</div>
+        <div id="bigWinnerDirection" class="big-winner-direction">---</div>
+        <div class="big-winner-sub">ここに当たった人と指示が大きく表示されます。</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="controls">
+    <button id="startBtn" class="main-btn" onclick="startRoulette()">指名する</button>
+    <button class="secondary-btn" onclick="resetRoulette()">リセット</button>
+  </div>
+
+  <div id="roulette"></div>
+  <div id="result"></div>
+  <div id="chosenList"></div>
+  <div id="remainingInfo"></div>
+</div>
+
+<script>
+let chosen = new Set();
+let currentMode = "class";
+let isSpinning = false;
+
+const defaultNames = [
+  "1番", "2番", "3番", "4番", "5番",
+  "6番", "7番", "8番", "9番", "10番",
+  "11番", "12番", "13番", "14番", "15番",
+  "16番", "17番", "18番", "19番", "20番",
+  "21番", "22番", "23番", "24番", "25番",
+  "26番", "27番", "28番", "29番", "30番",
+  "31番", "32番", "33番", "34番", "35番",
+  "36番", "37番", "38番", "39番", "40番"
+];
+
+function switchMode() {
+  const mode = document.querySelector('input[name="mode"]:checked').value;
+  currentMode = mode;
+  document.getElementById("selectMode").style.display = (mode === "select") ? "block" : "none";
+  document.getElementById("classMode").style.display = (mode === "class") ? "block" : "none";
+  resetRoulette();
+}
+
+function parseNames(text) {
+  const trimmed = text.trim();
+  if (trimmed === "") return [...defaultNames];
+
+  let items = [];
+
+  if (trimmed.includes("\n")) {
+    items = trimmed
+      .split(/\r?\n/)
+      .map(s => s.trim())
+      .filter(s => s !== "");
+  } else {
+    items = trimmed
+      .split(/\s+/)
+      .map(s => s.trim())
+      .filter(s => s !== "");
+  }
+
+  const uniqueItems = [];
+  const seen = new Set();
+
+  for (const name of items) {
+    if (!seen.has(name)) {
+      seen.add(name);
+      uniqueItems.push(name);
+    }
+  }
+
+  return uniqueItems.length > 0 ? uniqueItems : [...defaultNames];
+}
+
+function getNameList() {
+  if (currentMode === "select") {
+    const text = document.getElementById("nameList").value;
+    return parseNames(text);
+  } else {
+    const text = document.getElementById("classList").value;
+    return parseNames(text);
+  }
+}
+
+function updateInfo() {
+  const allNames = getNameList();
+  const remaining = allNames.filter(name => !chosen.has(name));
+  const chosenArr = Array.from(chosen);
+
+  const chosenListDiv = document.getElementById("chosenList");
+  const remainingInfoDiv = document.getElementById("remainingInfo");
+
+  if (chosenArr.length > 0) {
+    chosenListDiv.innerHTML = "当たった人： " + chosenArr.join("， ");
+  } else {
+    chosenListDiv.innerHTML = "まだ誰も当たっていません。";
+  }
+
+  remainingInfoDiv.innerHTML = `残り人数：${remaining.length} / 全体：${allNames.length}`;
+}
+
+function showBigWinner(name, direction) {
+  const box = document.getElementById("bigWinnerBox");
+  const nameDiv = document.getElementById("bigWinnerName");
+  const directionDiv = document.getElementById("bigWinnerDirection");
+
+  box.classList.remove("show");
+  void box.offsetWidth;
+
+  nameDiv.textContent = name;
+  directionDiv.textContent = direction;
+
+  box.classList.add("show");
+}
+
+function resetBigWinner() {
+  const box = document.getElementById("bigWinnerBox");
+  const nameDiv = document.getElementById("bigWinnerName");
+  const directionDiv = document.getElementById("bigWinnerDirection");
+
+  box.classList.remove("show");
+  nameDiv.textContent = "---";
+  directionDiv.textContent = "---";
+}
+
+function startRoulette() {
+  if (isSpinning) return;
+
+  const allNames = getNameList();
+  const remaining = allNames.filter(name => !chosen.has(name));
+
+  if (remaining.length === 0) {
+    document.getElementById("result").innerHTML = "<span class='label'>STATUS</span>✨ 全員当たりました！ ✨";
+    return;
+  }
+
+  isSpinning = true;
+  document.getElementById("startBtn").disabled = true;
+  document.getElementById("result").innerHTML = "";
+
+  let pool = [...remaining];
+  let candidates = [];
+  while (candidates.length < 5 && pool.length > 0) {
+    let idx = Math.floor(Math.random() * pool.length);
+    candidates.push(pool.splice(idx, 1)[0]);
+  }
+
+  let rouletteDiv = document.getElementById("roulette");
+  rouletteDiv.innerHTML = "";
+
+  candidates.forEach(name => {
+    let span = document.createElement("div");
+    span.className = "slot";
+    span.innerText = name;
+    span.title = name;
+    rouletteDiv.appendChild(span);
+  });
+
+  let slots = document.querySelectorAll(".slot");
+
+  let index = 0;
+  let delay = 90;
+  let steps = 22;
+  const finalIndex = Math.floor(Math.random() * slots.length);
+
+  function spin(step) {
+    slots.forEach(s => s.classList.remove("active"));
+    slots[index].classList.add("active");
+
+    if (step < steps) {
+      index = (index + 1) % slots.length;
+      delay *= 1.08;
+      setTimeout(() => spin(step + 1), delay);
+    } else {
+      slots.forEach(s => s.classList.remove("active"));
+      slots[finalIndex].classList.add("winner");
+
+      const winner = slots[finalIndex].innerText;
+      chosen.add(winner);
+
+      const directions = ["➡️ 右へ", "⬅️ 左へ", "⬆️ 前へ", "⬇️ 後ろへ"];
+      const direction = directions[Math.floor(Math.random() * directions.length)];
+
+      showBigWinner(winner, direction);
+
+      document.getElementById("result").innerHTML =
+        `<span class="label">SELECTED</span><b>${escapeHtml(winner)}</b> さんから順に，<br>${direction}`;
+
+      updateInfo();
+
+      isSpinning = false;
+      document.getElementById("startBtn").disabled = false;
+    }
+  }
+
+  spin(0);
+}
+
+function resetRoulette() {
+  chosen.clear();
+  resetBigWinner();
+  document.getElementById("result").innerHTML = "<span class='label'>STATUS</span>🔄 リセットしました";
+  document.getElementById("roulette").innerHTML = "";
+  updateInfo();
+}
+
+function clearClassList() {
+  document.getElementById("classList").value = "";
+  resetRoulette();
+}
+
+function clearSelectList() {
+  document.getElementById("nameList").value = "";
+  resetRoulette();
+}
+
+function escapeHtml(str) {
+  return str
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+updateInfo();
+</script>
+</body>
+</html>

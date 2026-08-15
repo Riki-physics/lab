@@ -1,0 +1,531 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>席替えメーカー 8×8（クラス授業／選択授業）</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    :root {
+      --bg: #f4f5fb;
+      --card-bg: #ffffff;
+      --accent: #2563eb;
+      --accent-soft: rgba(37,99,235,0.1);
+      --border-soft: #e2e8f0;
+      --text-main: #111827;
+      --text-sub: #6b7280;
+      --danger: #dc2626;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      padding: 16px;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: radial-gradient(circle at top, #e5edff 0, #f9fafb 40%, #f4f5fb 100%);
+      color: var(--text-main);
+      display: flex;
+      justify-content: center;
+    }
+    .app {
+      width: 100%;
+      max-width: 900px;
+      background: var(--card-bg);
+      border-radius: 16px;
+      box-shadow: 0 18px 45px rgba(15,23,42,0.16), 0 0 0 1px rgba(148,163,184,0.35);
+      padding: 20px 18px 22px;
+    }
+    h1 {
+      margin: 0 0 4px;
+      font-size: 22px;
+      letter-spacing: 0.03em;
+      display: flex;
+      align-items: baseline;
+      gap: 0.5rem;
+    }
+    h1 span.sub {
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--text-sub);
+      text-transform: uppercase;
+      letter-spacing: 0.14em;
+    }
+    .subtitle {
+      margin-bottom: 10px;
+      font-size: 13px;
+      color: var(--text-sub);
+    }
+
+    /* モードタブ（クラス授業／選択授業） */
+    .mode-tabs {
+      display: inline-flex;
+      border-radius: 999px;
+      padding: 2px;
+      background: #e5e7eb;
+      margin-bottom: 8px;
+    }
+    .mode-btn {
+      border: none;
+      padding: 6px 14px;
+      border-radius: 999px;
+      font-size: 12px;
+      cursor: pointer;
+      background: transparent;
+      color: #4b5563;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.15s ease;
+    }
+    .mode-btn.active {
+      background: #ffffff;
+      color: var(--accent);
+      box-shadow: 0 2px 5px rgba(148,163,184,0.35);
+    }
+
+    /* 教卓位置タブ（上／下） */
+    .tabs {
+      display: inline-flex;
+      border-radius: 999px;
+      padding: 2px;
+      background: #e5e7eb;
+      margin-bottom: 12px;
+      margin-left: 6px;
+    }
+    .tab-btn {
+      border: none;
+      padding: 6px 14px;
+      border-radius: 999px;
+      font-size: 12px;
+      cursor: pointer;
+      background: transparent;
+      color: #4b5563;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.15s ease;
+    }
+    .tab-btn.active {
+      background: #ffffff;
+      color: var(--accent);
+      box-shadow: 0 2px 5px rgba(148,163,184,0.35);
+    }
+    .tab-btn span.tag {
+      font-size: 9px;
+      padding: 2px 6px;
+      border-radius: 999px;
+      background: rgba(15,23,42,0.04);
+      color: #6b7280;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+
+    .controls {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 6px;
+      font-size: 13px;
+      flex-wrap: wrap;
+    }
+    .input-group {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+    .input-group label {
+      font-size: 13px;
+      color: var(--text-sub);
+    }
+    .input-group input {
+      width: 80px;
+      padding: 4px 8px;
+      border-radius: 6px;
+      border: 1px solid var(--border-soft);
+      font-size: 14px;
+      text-align: right;
+      background: #f9fafb;
+    }
+    .pill {
+      font-size: 11px;
+      padding: 2px 8px;
+      border-radius: 999px;
+      background: #f3f4f6;
+      color: #6b7280;
+    }
+    .pill strong { color: #111827; }
+
+    .btn {
+      border-radius: 999px;
+      border: none;
+      padding: 7px 16px;
+      font-size: 13px;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .btn-primary { background: var(--accent); color: white; }
+    .btn-secondary { background: #f3f4f6; color: #374151; }
+    .btn:disabled {
+      opacity: 0.55;
+      cursor: default;
+    }
+
+    .elective-box {
+      margin-top: 4px;
+      margin-bottom: 6px;
+      font-size: 12px;
+      color: var(--text-sub);
+    }
+    .elective-box label {
+      display: block;
+      margin-bottom: 4px;
+    }
+    .elective-box textarea {
+      width: 100%;
+      min-height: 80px;
+      resize: vertical;
+      padding: 6px 8px;
+      border-radius: 8px;
+      border: 1px solid var(--border-soft);
+      font-size: 13px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      background: #f9fafb;
+    }
+
+    .board-wrapper {
+      margin-top: 8px;
+      border-radius: 14px;
+      border: 1px solid rgba(148,163,184,0.7);
+      background: #ffffff;
+      padding: 12px;
+    }
+    .board-inner {
+      padding: 6px;
+      border-radius: 10px;
+      background: rgba(15,23,42,0.02);
+      box-shadow: inset 0 0 0 1px rgba(148,163,184,0.4);
+    }
+    .teacher-label {
+      text-align: center;
+      font-size: 60px; /* ★ 教卓 60px に調整 */
+      letter-spacing: 0.18em;
+      color: #4b5563;
+      font-weight: 600;
+      line-height: 1;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(8, 1fr);
+      gap: 4px;
+    }
+    .seat {
+      border-radius: 6px;
+      border: 1px solid rgba(148,163,184,0.8);
+      background: #e5e7eb;
+      min-height: 32px;
+      aspect-ratio: 1/1;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      font-size: 40px; /* 大きな数字 */
+      cursor: pointer;
+      user-select:none;
+      transition: transform 0.1s ease, box-shadow 0.1s ease;
+    }
+    .seat.selected {
+      background: var(--accent-soft);
+      border-color: var(--accent);
+      box-shadow: 0 0 0 1px rgba(37,99,235,0.6);
+    }
+    .seat.has-number {
+      background: #111827;
+      color: #f9fafb;
+      border-color: #111827;
+      font-weight: 600;
+      box-shadow: 0 4px 10px rgba(15,23,42,0.5);
+    }
+    .seat.flicker {
+      animation: flicker 0.4s linear infinite;
+    }
+    @keyframes flicker {
+      0%   { transform: translateY(0);    box-shadow: 0 0 0 rgba(37,99,235,0); }
+      40%  { transform: translateY(-1px); box-shadow: 0 6px 10px rgba(37,99,235,0.4); }
+      100% { transform: translateY(0);    box-shadow: 0 0 0 rgba(37,99,235,0); }
+    }
+  </style>
+</head>
+<body>
+
+<div class="app">
+  <h1>席替えメーカー 8×8 <span class="sub">SEAT SHUFFLER</span></h1>
+  <div class="subtitle">タブで「クラス授業」と「選択授業」を切替。レイアウト共通、結果は別々に保存。</div>
+
+  <!-- モードタブ：クラス授業／選択授業 -->
+  <div style="display:flex; align-items:center; flex-wrap:wrap; gap:6px;">
+    <div class="mode-tabs" aria-label="授業モード">
+      <button class="mode-btn active" id="mode-class">クラス授業</button>
+      <button class="mode-btn" id="mode-elective">選択授業</button>
+    </div>
+
+    <!-- 教卓位置タブ：上／下（位置関係は固定で今後変更しない） -->
+    <div class="tabs" aria-label="教卓の位置">
+      <button class="tab-btn active" id="tab-top">上が教卓側 <span class="tag">TOP</span></button>
+      <button class="tab-btn" id="tab-bottom">下が教卓側 <span class="tag">BOTTOM</span></button>
+    </div>
+  </div>
+
+  <div class="controls">
+    <div class="input-group">
+      <label>人数</label>
+      <input id="studentCount" type="number" readonly>
+      <span class="pill">選択: <strong id="selectedCount">0</strong> / 64</span>
+      <span class="pill" id="modeLabel">モード：クラス授業</span>
+    </div>
+    <button class="btn btn-secondary" id="resetSelection">リセット</button>
+    <button class="btn btn-primary" id="startShuffle">🎲 席替え開始！</button>
+  </div>
+
+  <!-- 選択授業 用番号入力 -->
+  <div class="elective-box" id="electiveBox" style="display:none;">
+    <label for="electiveNumbers">
+      選択授業の番号（1行に1つ、半角数字で貼り付け）：
+    </label>
+    <textarea id="electiveNumbers" placeholder="例：&#10;101&#10;102&#10;203&#10;..."></textarea>
+  </div>
+
+  <div class="board-wrapper">
+    <div class="teacher-label" id="teacherTop">教卓</div>
+    <div class="board-inner"><div class="grid" id="seatGrid"></div></div>
+    <div class="teacher-label" id="teacherBottom" style="display:none;">教卓</div>
+  </div>
+</div>
+
+<script>
+(function(){
+  const rows=8, cols=8, total=rows*cols;
+  const seatGrid=document.getElementById("seatGrid");
+  const selectedCountEl=document.getElementById("selectedCount");
+  const studentCountInput=document.getElementById("studentCount");
+  const resetBtn=document.getElementById("resetSelection");
+  const startBtn=document.getElementById("startShuffle");
+  const tabTop=document.getElementById("tab-top");
+  const tabBottom=document.getElementById("tab-bottom");
+  const teacherTop=document.getElementById("teacherTop");
+  const teacherBottom=document.getElementById("teacherBottom");
+
+  const modeClassBtn=document.getElementById("mode-class");
+  const modeElectiveBtn=document.getElementById("mode-elective");
+  const modeLabel=document.getElementById("modeLabel");
+  const electiveBox=document.getElementById("electiveBox");
+  const electiveInput=document.getElementById("electiveNumbers");
+
+  let orientation="top";        // 上／下教卓（位置関係は固定）
+  let currentMode="class";      // "class" or "elective"
+  let animating=false;
+
+  // モードごとに独立した座席状態を持つ
+  const seatsClass    = Array.from({length: total}, ()=>({selected:false,value:""}));
+  const seatsElective = Array.from({length: total}, ()=>({selected:false,value:""}));
+
+  function getSeats(){
+    return (currentMode==="class") ? seatsClass : seatsElective;
+  }
+
+  // グリッド描画（上下左右反転ロジックは固定）
+  function renderGrid(){
+    const seats = getSeats();
+    seatGrid.innerHTML="";
+    for(let displayRow=0; displayRow<rows; displayRow++){
+      for(let col=0; col<cols; col++){
+        const actualRow = (orientation==="top") ? displayRow : (rows-1-displayRow);
+        const actualCol = (orientation==="top") ? col        : (cols-1-col);
+        const idx = actualRow*cols + actualCol;
+        const state = seats[idx];
+
+        const seat=document.createElement("div");
+        seat.className="seat";
+        if(state.selected)   seat.classList.add("selected");
+        if(state.value!=="") seat.classList.add("has-number");
+        seat.dataset.idx=idx;
+
+        seat.textContent = state.value;
+        seat.onclick = onSeatClick;
+
+        seatGrid.appendChild(seat);
+      }
+    }
+    updateCountDisplay();
+  }
+
+  function onSeatClick(e){
+    if(animating) return;
+    const idx = Number(e.currentTarget.dataset.idx);
+    const seats = getSeats();
+    seats[idx].selected = !seats[idx].selected;
+    updateCountDisplay();
+    renderGrid();
+  }
+
+  function updateCountDisplay(){
+    const seats = getSeats();
+    const count = seats.filter(s=>s.selected).length;
+    selectedCountEl.textContent = count;
+    studentCountInput.value    = count>0 ? count : "";
+  }
+
+  function resetSelection(){
+    if(animating) return;
+    const seats = getSeats();
+    seats.forEach(s=>{ s.selected=false; s.value=""; });
+    updateCountDisplay();
+    renderGrid();
+  }
+
+  function shuffle(arr){
+    for(let i=arr.length-1;i>0;i--){
+      const j=Math.floor(Math.random()*(i+1));
+      [arr[i],arr[j]]=[arr[j],arr[i]];
+    }
+    return arr;
+  }
+
+  // ルーレット演出付きで割り当て
+  function startShuffle(){
+    if(animating) return;
+
+    const seats = getSeats();
+    const targetSeats = seats.map((s,i)=>s.selected?i:null).filter(v=>v!==null);
+    const nSeats = targetSeats.length;
+
+    if(nSeats===0){
+      alert("少なくとも1つのマスを選択してください。");
+      return;
+    }
+
+    let numbers;
+
+    if(currentMode==="class"){
+      // クラス授業：1〜人数の連番
+      numbers = shuffle([...Array(nSeats)].map((_,i)=>String(i+1)));
+    } else {
+      // 選択授業：貼り付けられた番号を利用
+      const raw = electiveInput.value.trim();
+      if(!raw){
+        alert("選択授業の番号が入力されていません。1行に1つ、半角数字で入力してください。");
+        return;
+      }
+
+      const tokens = raw.split(/\s+/).filter(t=>t.length>0);
+      // 半角数字チェック
+      const invalid = tokens.find(t=>!/^\d+$/.test(t));
+      if(invalid){
+        alert("半角数字以外の文字が含まれています（\"" + invalid + "\"）。\n半角数字だけを1行に1つ入力してください。");
+        return;
+      }
+
+      if(tokens.length !== nSeats){
+        alert("数字の個数（" + tokens.length + "個）と、選択したマスの個数（" + nSeats + "個）が一致していません。");
+        return;
+      }
+
+      numbers = shuffle(tokens.slice());
+    }
+
+    // ここまでで検証OK → 抽選開始
+    animating=true;
+    startBtn.disabled=true;
+    resetBtn.disabled=true;
+
+    // 既存の数字をクリア
+    seats.forEach(s=>s.value="");
+    renderGrid();
+
+    const order   = shuffle([...targetSeats]); // 座席順もランダム
+    const n = numbers.length;
+    let cur=0;
+
+    function assignNext(){
+      if(cur>=order.length){
+        animating=false;
+        startBtn.disabled=false;
+        resetBtn.disabled=false;
+        renderGrid();
+        return;
+      }
+
+      const idx = order[cur];
+      const finalNumber = numbers[cur];
+
+      const seatDiv = seatGrid.querySelector(`.seat[data-idx="${idx}"]`);
+      if(!seatDiv){
+        cur++;
+        assignNext();
+        return;
+      }
+
+      let step=0;
+      const flickerSteps=12;
+      seatDiv.classList.add("flicker");
+
+      const flickerInterval = setInterval(()=>{
+        if(step>=flickerSteps){
+          clearInterval(flickerInterval);
+          seatDiv.classList.remove("flicker");
+          // 確定値を状態に書き込み → 再描画
+          seats[idx].value = String(finalNumber);
+          renderGrid();
+
+          cur++;
+          setTimeout(assignNext, 260);
+        } else {
+          // ルーレット中は候補の中からランダム表示
+          const temp = numbers[Math.floor(Math.random()*n)];
+          seatDiv.textContent = temp;
+          step++;
+        }
+      }, 45);
+    }
+
+    assignNext();
+  }
+
+  function setOrientation(o){
+    if(orientation===o) return;
+    orientation=o;
+    tabTop.classList.toggle("active",o==="top");
+    tabBottom.classList.toggle("active",o==="bottom");
+    teacherTop.style.display    = (o==="top")   ? "block" : "none";
+    teacherBottom.style.display = (o==="bottom")? "block" : "none";
+    renderGrid();
+  }
+
+  function setMode(mode){
+    if(animating) return; // 抽選中は切替禁止
+    if(currentMode===mode) return;
+
+    currentMode = mode;
+    const isClass = (mode==="class");
+
+    modeClassBtn.classList.toggle("active",isClass);
+    modeElectiveBtn.classList.toggle("active",!isClass);
+    modeLabel.textContent = "モード：" + (isClass ? "クラス授業" : "選択授業");
+    electiveBox.style.display = isClass ? "none" : "block";
+
+    renderGrid();
+  }
+
+  // イベント設定
+  resetBtn.onclick=resetSelection;
+  startBtn.onclick=startShuffle;
+  tabTop.onclick = ()=>setOrientation("top");
+  tabBottom.onclick = ()=>setOrientation("bottom");
+  modeClassBtn.onclick   = ()=>setMode("class");
+  modeElectiveBtn.onclick= ()=>setMode("elective");
+
+  // 初期表示
+  renderGrid();
+})();
+</script>
+</body>
+</html>
