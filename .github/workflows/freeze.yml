@@ -18,7 +18,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: 凍結ファイルの変更を巻き戻す
+      - name: revert-frozen-files
         env:
           BEFORE: ${{ github.event.before }}
         run: |
@@ -42,7 +42,7 @@ jobs:
 
           changed=()
           while IFS= read -r f; do
-            case "$f" in ''|\#*) continue ;; esac
+            case "$f" in ''|'#'*) continue ;; esac
             if ! git diff --quiet "${BEFORE}" "${GITHUB_SHA}" -- "$f"; then
               changed+=("$f")
             fi
@@ -65,9 +65,8 @@ jobs:
 
           git config user.name "freeze-bot"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git commit -m "[skip ci] 凍結ファイルの変更を自動で巻き戻しました: ${changed[*]}
-
-公開済みのため .github/frozen.txt で変更を禁止しています。
-修正が必要な場合は，新しい YYYYMM を付けたファイル名で追加してください。"
+          git commit \
+            -m "[skip ci] 凍結ファイルの変更を自動で巻き戻しました: ${changed[*]}" \
+            -m "公開済みのため .github/frozen.txt で変更を禁止しています。修正が必要な場合は，新しい YYYYMM を付けたファイル名で追加してください。"
           git push origin "HEAD:main"
           echo "巻き戻し完了: ${changed[*]}"
