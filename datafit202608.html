@@ -5,120 +5,214 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>散布図＆フィッティングツール（物理データ用）</title>
 <style>
+  :root {
+    --bg: #f4f5fb;
+    --card-bg: #ffffff;
+    --accent: #2a78d6;
+    --accent-soft: rgba(42,120,214,0.1);
+    --border-soft: #e2e8f0;
+    --text-main: #1c1c1a;
+    --text-sub: #6b6b66;
+  }
   * { box-sizing: border-box; }
   body {
     font-family: system-ui, -apple-system, "Hiragino Kaku Gothic ProN", Meiryo, sans-serif;
     text-align: center;
-    margin: 16px;
-    background: #ffffff;
-    color: #0b0b0b;
+    margin: 0;
+    padding: 28px 16px 60px;
+    background: radial-gradient(circle at top, #eaf1ff 0%, #f7f8fc 42%, var(--bg) 100%);
+    color: var(--text-main);
     font-size: 16px;
   }
-  h1 { font-size: 22px; margin-bottom: 6px; }
-  .lead { color: #52514e; font-size: 0.92em; max-width: 720px; margin: 0 auto 16px; line-height: 1.6; text-align: left; }
+  h1 {
+    font-size: 24px; margin: 0 0 6px; letter-spacing: 0.01em;
+    display: flex; align-items: baseline; justify-content: center; gap: 0.55rem;
+  }
+  h1 .sub { font-size: 11px; font-weight: 600; color: var(--text-sub); text-transform: uppercase; letter-spacing: 0.16em; }
+  .lead { color: var(--text-sub); font-size: 0.92em; max-width: 720px; margin: 0 auto 16px; line-height: 1.65; text-align: left; }
   .wrap { max-width: 1200px; margin: 0 auto; }
   .sym { font-family: "Times New Roman", Times, serif; font-style: italic; }
 
   .mainLayout { display: flex; gap: 24px; align-items: flex-start; }
-  .tableCol { flex: 0 0 340px; min-width: 0; }
+  .tableCol { flex: 0 0 380px; min-width: 0; }
   .chartCol { flex: 1 1 auto; min-width: 0; }
-  @media (max-width: 1080px) {
+  @media (max-width: 1180px) {
     .mainLayout { flex-direction: column; }
     .tableCol { flex: none; width: 100%; order: 2; }
     .chartCol { width: 100%; order: 1; }
   }
 
   .box {
-    border: 1px solid #ddd;
-    border-radius: 10px;
-    background: #fafafa;
-    padding: 10px 16px;
+    border: 1px solid var(--border-soft);
+    border-radius: 14px;
+    background: var(--card-bg);
+    box-shadow: 0 10px 28px rgba(15,23,42,0.06);
+    padding: 14px 18px;
     margin: 12px auto;
     text-align: left;
   }
 
   .labelsbox { display: flex; flex-wrap: wrap; gap: 8px 20px; align-items: center; justify-content: center; }
   .labelsbox .field { display: flex; align-items: center; gap: 6px; }
-  .labelsbox label { font-size: 0.85em; color: #52514e; white-space: nowrap; }
-  .labelsbox input[type=text] { width: 60px; padding: 4px 6px; }
+  .labelsbox label { font-size: 0.85em; color: var(--text-sub); white-space: nowrap; }
+  .labelsbox input[type=text] {
+    width: 60px; padding: 5px 8px; border-radius: 7px; border: 1px solid var(--border-soft);
+    background: #f9fafb; font-size: 0.95em; transition: border-color .15s, box-shadow .15s;
+  }
+  .labelsbox input[type=text]:focus {
+    outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); background: #fff;
+  }
   .labelsbox .namefield input[type=text] { width: 96px; }
-  .labelsbox .sep { width: 1px; align-self: stretch; background: #ddd; margin: 0 4px; }
+  .labelsbox .sep { width: 1px; align-self: stretch; background: var(--border-soft); margin: 0 4px; }
 
-  .legend { display: flex; gap: 22px; justify-content: center; margin: 10px 0 4px; font-size: 0.95em; }
-  .legend .item { display: flex; align-items: center; gap: 6px; color: #52514e; }
-  .legend .swatch { width: 12px; height: 12px; border-radius: 3px; display: inline-block; }
-  .legend .s1 { background: #2a78d6; }
-  .legend .s2 { background: #eb6834; }
+  .legend { display: flex; gap: 10px; justify-content: center; margin: 14px 0 10px; font-size: 0.92em; flex-wrap: wrap; }
+  .legend .item {
+    display: flex; align-items: center; gap: 7px; color: var(--text-main);
+    background: #f3f4f8; border-radius: 999px; padding: 5px 14px 5px 10px; font-weight: 500;
+  }
+  .swatch { width: 11px; height: 11px; border-radius: 3px; display: inline-block; }
+  .s1 { background: #2a78d6; }
+  .s2 { background: #eb6834; }
+  .s3 { background: #1baf7a; }
 
-  canvas { display: block; margin: 0 auto; max-width: 100%; height: auto; border: 1px solid #ccc; border-radius: 6px; background: #fcfcfb; touch-action: none; }
-  .canvashint { text-align: center; color: #898781; font-size: 0.85em; margin: 6px 0 0; }
+  canvas {
+    display: block; margin: 0 auto; max-width: 100%; height: auto;
+    border: 1px solid var(--border-soft); border-radius: 12px; background: #fcfcfb; touch-action: none;
+    box-shadow: 0 10px 28px rgba(15,23,42,0.06);
+  }
+  .chartWrap { margin-bottom: 16px; }
+  .chartWrap:last-child { margin-bottom: 0; }
+  .chartTitle { display: flex; align-items: center; gap: 14px; font-size: 0.85em; color: var(--text-sub); margin: 0 0 6px 6px; font-weight: 500; }
+  .ttitem { display: flex; align-items: center; gap: 6px; }
+  .modehint { text-align: center; color: var(--text-sub); font-size: 0.82em; margin: 8px 0 0; }
+  .canvashint { text-align: center; color: var(--text-sub); font-size: 0.85em; margin: 6px 0 0; }
+
+  .chart-fs-wrap { position: relative; }
+  .fs-toolbar { display: flex; justify-content: flex-end; margin-bottom: 8px; }
+  .chart-fs-wrap:fullscreen,
+  .chart-fs-wrap:-webkit-full-screen {
+    background: var(--bg);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    overflow: auto;
+  }
+
+  .value-overlay {
+    position: fixed;
+    left: 50%; top: 50%;
+    transform: translate(-50%, -50%);
+    background: rgba(17,20,30,0.92);
+    color: #fff;
+    padding: 24px 44px;
+    border-radius: 20px;
+    text-align: center;
+    pointer-events: none;
+    z-index: 999;
+    box-shadow: 0 20px 50px rgba(0,0,0,0.4);
+    border: 1px solid rgba(255,255,255,0.08);
+  }
+  .value-overlay .row { display: flex; align-items: baseline; justify-content: center; gap: 10px; font-size: 44px; white-space: nowrap; }
+  .value-overlay .row + .row { margin-top: 8px; }
+  .value-overlay .sym { font-family: "Times New Roman", Times, serif; font-style: italic; }
+  .value-overlay .swatch-lg { width: 18px; height: 18px; border-radius: 5px; display: inline-block; }
 
   .fitrow {
     display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
-    padding: 8px 12px; border-radius: 8px; margin: 8px auto; max-width: 860px;
+    padding: 10px 16px; border-radius: 12px; margin: 10px auto; max-width: 860px;
+    box-shadow: 0 4px 14px rgba(15,23,42,0.04);
   }
-  .fitrow.s1 { background: rgba(42,120,214,0.07); border-left: 4px solid #2a78d6; }
-  .fitrow.s2 { background: rgba(235,104,52,0.07); border-left: 4px solid #eb6834; }
-  .fitrow .name { font-weight: 600; min-width: 3.5em; }
-  .fitrow select { font-size: 0.92em; padding: 5px 6px; }
-  .fitrow button { font-size: 0.88em; padding: 6px 12px; }
-  .fitrow .eq { font-size: 1.1em; min-width: 8em; }
-  .fitrow .r2 { color: #52514e; font-size: 0.88em; margin-left: auto; }
+  .fitrow.s1 { background: rgba(42,120,214,0.06); border-left: 4px solid #2a78d6; }
+  .fitrow.s2 { background: rgba(235,104,52,0.06); border-left: 4px solid #eb6834; }
+  .fitrow.s3 { background: rgba(27,175,122,0.06); border-left: 4px solid #1baf7a; }
+  .fitrow .name { font-weight: 700; min-width: 3.8em; letter-spacing: 0.01em; }
+  .fitrow select { font-size: 0.92em; padding: 6px 8px; border-radius: 7px; border: 1px solid var(--border-soft); background: #fff; }
+  .fitrow .eq { font-size: 1.15em; min-width: 8em; }
+  .fitrow .r2 { color: var(--text-sub); font-size: 0.88em; margin-left: auto; font-variant-numeric: tabular-nums; }
+
+  .statsrow {
+    display: flex; gap: 8px; flex-wrap: wrap;
+    padding: 0 4px 10px 20px; margin: -6px auto 6px; max-width: 860px;
+    font-size: 0.8em; color: var(--text-sub);
+  }
+  .statsrow span { background: #f3f4f8; border-radius: 999px; padding: 3px 10px; }
+  .statsrow b { color: var(--text-main); font-weight: 700; }
 
   button {
-    font-size: 0.95em;
-    padding: 8px 16px;
-    border-radius: 8px;
-    border: 1px solid #ccc;
+    font-size: 0.92em;
+    padding: 8px 18px;
+    border-radius: 999px;
+    border: 1px solid var(--border-soft);
     background: #fff;
+    color: var(--text-main);
     cursor: pointer;
+    transition: all .15s ease;
   }
-  button:hover { background: #eee; }
+  button:hover { border-color: var(--accent); color: var(--accent); }
+  #fit1auto, #fit2auto, #fit3auto, #fullscreenBtn {
+    background: var(--accent); color: #fff; border-color: var(--accent); font-weight: 600;
+  }
+  #fit1auto:hover, #fit2auto:hover, #fit3auto:hover, #fullscreenBtn:hover {
+    background: #1f63b3; border-color: #1f63b3; color: #fff;
+  }
 
   /* --- スプレッドシート風データ表 --- */
-  .tablewrap { max-height: 560px; overflow-y: auto; border: 1px solid #c9c9c9; border-radius: 6px; }
+  .tablewrap { max-height: 560px; overflow-y: auto; border: 1px solid var(--border-soft); border-radius: 12px; }
   table#dataTable { border-collapse: collapse; width: 100%; font-size: 0.95em; table-layout: fixed; }
   #dataTable th {
-    background: #f3f3f1; color: #333; font-weight: 600; border: 1px solid #d5d5d2;
-    padding: 6px 4px; position: sticky; top: 0; z-index: 1;
+    background: #eef2fb; color: #33415c; font-weight: 700; border: 1px solid #e2e8f0;
+    padding: 8px 4px; position: sticky; top: 0; z-index: 1; font-size: 0.9em;
   }
   #dataTable th.rownum, #dataTable td.rownum {
-    width: 34px; background: #f3f3f1; color: #999; text-align: center; font-size: 0.82em; user-select: none;
+    width: 34px; background: #f7f8fb; color: #a3a7b3; text-align: center; font-size: 0.8em; user-select: none;
   }
   #dataTable th.delcol { width: 30px; }
-  #dataTable td { border: 1px solid #e2e2df; padding: 0; height: 30px; }
+  #dataTable td { border: 1px solid #edeff4; padding: 0; height: 30px; }
+  #dataTable tbody tr:nth-child(even) td { background: #fafbfd; }
+  #dataTable tbody tr:nth-child(even) td.rownum { background: #f4f5fa; }
   #dataTable td .cell {
     width: 100%; height: 100%; border: none; outline: none; background: transparent;
     padding: 5px 8px; text-align: right; font-size: 0.95em; font-variant-numeric: tabular-nums;
     font-family: inherit;
   }
-  #dataTable td .cell:focus { outline: 2px solid #2a78d6; outline-offset: -2px; background: #eaf2fc; }
-  .del-row { width: 100%; height: 100%; background: none; border: none; color: #b3541e; cursor: pointer; padding: 0; border-radius: 0; }
-  .del-row:hover { background: #fbe4dc; color: #e34948; }
+  #dataTable td .cell:focus { outline: 2px solid var(--accent); outline-offset: -2px; background: var(--accent-soft); }
+  .del-row { width: 100%; height: 100%; background: none; border: none; color: #c2c6d1; cursor: pointer; padding: 0; border-radius: 0; font-size: 0.95em; }
+  .del-row:hover { background: #fde6e6; color: #d64545; }
 
-  .tablebtns { display: flex; gap: 10px; justify-content: center; margin-top: 10px; }
+  .tablebtns { display: flex; gap: 10px; justify-content: center; margin-top: 12px; }
 </style>
 </head>
 <body>
 <div class="wrap">
 
-  <h1>散布図＆フィッティングツール</h1>
+  <h1>散布図＆フィッティングツール <span class="sub">SCATTER &amp; FIT</span></h1>
   <p class="lead">
-    1. 下の表（表計算ソフトのように操作できます）に <span class="sym">x</span>，<span class="sym">y</span> の値を入力，または Excel や Numbers からコピーしたデータをそのまま貼り付けると，グラフに反映されます。<br>
+    1. 下の表（表計算ソフトのように操作できます）に横軸・縦軸の値を入力，または Excel や Numbers からコピーしたデータをそのまま貼り付けると，グラフに反映されます。<br>
     2. グラフ下の「関数」欄で近似曲線の種類を選ぶと，最小二乗法で自動フィットされた曲線が表示されます。<br>
     3. グラフ上の <b>●</b> を直接ドラッグすると，その点を通るように曲線がリアルタイムに変形します。
   </p>
 
   <div class="box labelsbox" id="labelsBox">
-    <div class="field"><label>横軸 記号</label><input type="text" id="xSym" value="x"></div>
-    <div class="field"><label>単位</label><input type="text" id="xUnit" value="s"></div>
+    <div class="field"><label>横軸 記号</label><input type="text" id="xSym" value="t"></div>
+    <div class="field"><label>単位</label><input type="text" id="xUnit" value="s" title="^2 → ²，_1 → ₁ のように ^ と _ で上付き・下付きを入力できます"></div>
     <div class="sep"></div>
-    <div class="field"><label>縦軸 記号</label><input type="text" id="ySym" value="y"></div>
-    <div class="field"><label>単位</label><input type="text" id="yUnit" value="m"></div>
+    <div class="field namefield"><label>縦軸1 名</label><input type="text" id="s1Name" value="縦軸1"></div>
+    <div class="field"><label>記号</label><input type="text" id="s1Sym" value="x"></div>
+    <div class="field"><label>単位</label><input type="text" id="s1Unit" value="m" title="^2 → ²，_1 → ₁ のように ^ と _ で上付き・下付きを入力できます"></div>
     <div class="sep"></div>
-    <div class="field namefield"><label>系列1 名</label><input type="text" id="s1Name" value="系列1"></div>
-    <div class="field namefield"><label>系列2 名</label><input type="text" id="s2Name" value="系列2"></div>
+    <div class="field namefield"><label>縦軸2 名</label><input type="text" id="s2Name" value="縦軸2"></div>
+    <div class="field"><label>記号</label><input type="text" id="s2Sym" value="v"></div>
+    <div class="field"><label>単位</label><input type="text" id="s2Unit" value="m/s" title="^2 → ²，_1 → ₁ のように ^ と _ で上付き・下付きを入力できます"></div>
+    <div class="sep"></div>
+    <div class="field namefield"><label>縦軸3 名</label><input type="text" id="s3Name" value="縦軸3"></div>
+    <div class="field"><label>記号</label><input type="text" id="s3Sym" value="a"></div>
+    <div class="field"><label>単位</label><input type="text" id="s3Unit" value="m/s^2" title="^2 → ²，_1 → ₁ のように ^ と _ で上付き・下付きを入力できます"></div>
   </div>
+  <p class="lead" style="max-width:1160px; margin-top:-4px; font-size:0.82em;">
+    縦軸ごとに単位が異なる場合（例：位置 <span class="sym">x</span> [m]・速度 <span class="sym">v</span> [m/s]・加速度 <span class="sym">a</span> [m/s²]）は，重ね合わせず自動でグラフを分けて表示します。単位が同じ縦軸同士は1つのグラフに重ねて表示します。単位欄は <b>^2</b> のように入力すると <b>²</b> に変換されます（下付きは <b>_</b>）。
+  </p>
 
   <div class="mainLayout">
     <div class="tableCol">
@@ -128,9 +222,10 @@
             <thead>
               <tr>
                 <th class="rownum">#</th>
-                <th>X</th>
-                <th id="thY1">系列1</th>
-                <th id="thY2">系列2</th>
+                <th>横軸</th>
+                <th id="thY1">縦軸1</th>
+                <th id="thY2">縦軸2</th>
+                <th id="thY3">縦軸3</th>
                 <th class="delcol"></th>
               </tr>
             </thead>
@@ -145,27 +240,66 @@
     </div>
 
     <div class="chartCol">
-      <div class="legend">
-        <span class="item"><span class="swatch s1"></span><span id="legendName1">系列1</span></span>
-        <span class="item"><span class="swatch s2"></span><span id="legendName2">系列2</span></span>
-      </div>
+      <div id="chartFsWrap" class="chart-fs-wrap">
+        <div class="fs-toolbar">
+          <button id="fullscreenBtn" type="button">⛶ 全画面表示</button>
+        </div>
+        <div class="legend">
+          <span class="item"><span class="swatch s1"></span><span id="legendName1">縦軸1</span></span>
+          <span class="item"><span class="swatch s2"></span><span id="legendName2">縦軸2</span></span>
+          <span class="item"><span class="swatch s3"></span><span id="legendName3">縦軸3</span></span>
+        </div>
 
-      <canvas id="chart"></canvas>
-      <p class="canvashint">グラフ上の点をドラッグすると曲線を調整できます</p>
+        <div id="chartArea"></div>
+        <p class="modehint" id="modeHint"></p>
+        <div id="valueOverlay" class="value-overlay" hidden></div>
+      </div>
+      <p class="canvashint">グラフ上の点をドラッグすると曲線を調整できます。全画面表示中はデータ点をタップすると数値が拡大表示されます。</p>
 
       <div class="fitrow s1">
-        <span class="name" id="fit1title">系列1</span>
+        <span class="name" id="fit1title">縦軸1</span>
         <select id="fit1type"></select>
         <button id="fit1auto" type="button">自動フィット</button>
         <span class="eq" id="fit1eq"></span>
         <span class="r2" id="fit1r2">R² = —</span>
       </div>
+      <div class="statsrow">
+        <span>平均 <b id="stat1mean">—</b></span>
+        <span>中央値 <b id="stat1median">—</b></span>
+        <span>最大 <b id="stat1max">—</b></span>
+        <span>最小 <b id="stat1min">—</b></span>
+        <span>標準偏差 <b id="stat1std">—</b></span>
+        <span>合計 <b id="stat1sum">—</b></span>
+      </div>
       <div class="fitrow s2">
-        <span class="name" id="fit2title">系列2</span>
+        <span class="name" id="fit2title">縦軸2</span>
         <select id="fit2type"></select>
         <button id="fit2auto" type="button">自動フィット</button>
         <span class="eq" id="fit2eq"></span>
         <span class="r2" id="fit2r2">R² = —</span>
+      </div>
+      <div class="statsrow">
+        <span>平均 <b id="stat2mean">—</b></span>
+        <span>中央値 <b id="stat2median">—</b></span>
+        <span>最大 <b id="stat2max">—</b></span>
+        <span>最小 <b id="stat2min">—</b></span>
+        <span>標準偏差 <b id="stat2std">—</b></span>
+        <span>合計 <b id="stat2sum">—</b></span>
+      </div>
+      <div class="fitrow s3">
+        <span class="name" id="fit3title">縦軸3</span>
+        <select id="fit3type"></select>
+        <button id="fit3auto" type="button">自動フィット</button>
+        <span class="eq" id="fit3eq"></span>
+        <span class="r2" id="fit3r2">R² = —</span>
+      </div>
+      <div class="statsrow">
+        <span>平均 <b id="stat3mean">—</b></span>
+        <span>中央値 <b id="stat3median">—</b></span>
+        <span>最大 <b id="stat3max">—</b></span>
+        <span>最小 <b id="stat3min">—</b></span>
+        <span>標準偏差 <b id="stat3std">—</b></span>
+        <span>合計 <b id="stat3sum">—</b></span>
       </div>
     </div>
   </div>
@@ -185,14 +319,21 @@
     baseline: "#c3c2b7",
     series1: "#2a78d6",
     series2: "#eb6834",
+    series3: "#1baf7a",
   };
+  const SERIES = [1, 2, 3];
+  function seriesColor(k) { return COLORS[`series${k}`]; }
 
   const fitState = {
     1: { type: null, handles: [] },
     2: { type: null, handles: [] },
+    3: { type: null, handles: [] },
   };
-  let dragging = null;   // { series, index }
-  let lastGeom = null;
+  let dragging = null;   // { inst, series, index }
+  let chartInstances = [];  // [{ seriesKeys, canvas, lastGeom, titleEls }, ...]
+  let chartSignature = "";
+  let lastPtsAll = null;
+  let isFullscreen = false;
 
   // ---------- 数値フォーマット ----------
 
@@ -419,6 +560,26 @@
     return r.toLocaleString("ja-JP", { maximumFractionDigits: 6 });
   }
 
+  // ---------- 単位表示（^2 → ²，_1 → ₁ のように上付き・下付きに変換） ----------
+  // キャンバス上のテキストは <sup>/<sub> が使えないので，入力しやすい ^ / _ 記法を
+  // Unicodeの上付き・下付き文字に変換してから描画する。
+
+  const SUP_MAP = { "0":"⁰","1":"¹","2":"²","3":"³","4":"⁴","5":"⁵","6":"⁶","7":"⁷","8":"⁸","9":"⁹","+":"⁺","-":"⁻","(":"⁽",")":"⁾" };
+  const SUB_MAP = { "0":"₀","1":"₁","2":"₂","3":"₃","4":"₄","5":"₅","6":"₆","7":"₇","8":"₈","9":"₉","+":"₊","-":"₋","(":"₍",")":"₎" };
+
+  function toScript(str, map) {
+    return [...str].map(ch => (map[ch] !== undefined ? map[ch] : ch)).join("");
+  }
+
+  function formatUnitDisplay(s) {
+    if (!s) return s;
+    let out = s.replace(/\^\(([^)]*)\)/g, (m, inner) => toScript(inner, SUP_MAP));
+    out = out.replace(/\^([+-]?\d+)/g, (m, digits) => toScript(digits, SUP_MAP));
+    out = out.replace(/_\(([^)]*)\)/g, (m, inner) => toScript(inner, SUB_MAP));
+    out = out.replace(/_([+-]?\d+)/g, (m, digits) => toScript(digits, SUB_MAP));
+    return out;
+  }
+
   // ---------- 幾何（座標変換）：ドラッグ時のヒット判定にも使う ----------
 
   function geomMapX(g, x) { return g.margin.left + (x - g.xDomain.min) / (g.xDomain.max - g.xDomain.min) * g.plotW; }
@@ -430,14 +591,49 @@
 
   function getPoints(k) {
     const rows = document.querySelectorAll("#dataBody tr");
-    const col = k === 1 ? "1" : "2";
     const pts = [];
     rows.forEach(tr => {
       const x = parseFloat(tr.querySelector('.cell[data-col="0"]').value);
-      const y = parseFloat(tr.querySelector(`.cell[data-col="${col}"]`).value);
+      const y = parseFloat(tr.querySelector(`.cell[data-col="${k}"]`).value);
       if (Number.isFinite(x) && Number.isFinite(y)) pts.push({ x, y });
     });
     return pts;
+  }
+
+  // render() のたびに系列ごと何度も表を読み直すと行数が多いときに重くなるので，
+  // 1回の表走査で全系列分の点をまとめて取得する（行数を増やしても軽く保つため）
+  function getAllSeriesPoints() {
+    const rows = document.querySelectorAll("#dataBody tr");
+    const result = { 1: [], 2: [], 3: [] };
+    rows.forEach(tr => {
+      const x = parseFloat(tr.querySelector('.cell[data-col="0"]').value);
+      if (!Number.isFinite(x)) return;
+      SERIES.forEach(k => {
+        const y = parseFloat(tr.querySelector(`.cell[data-col="${k}"]`).value);
+        if (Number.isFinite(y)) result[k].push({ x, y });
+      });
+    });
+    return result;
+  }
+
+  // ---------- 統計量（平均・中央値・合計） ----------
+
+  function computeStats(values) {
+    if (!values.length) return null;
+    const n = values.length;
+    const sum = values.reduce((s, v) => s + v, 0);
+    const mean = sum / n;
+    const sorted = [...values].sort((a, b) => a - b);
+    const mid = Math.floor(n / 2);
+    const median = n % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+    const max = sorted[n - 1];
+    const min = sorted[0];
+    let std = null;
+    if (n >= 2) {
+      const variance = values.reduce((s, v) => s + (v - mean) ** 2, 0) / (n - 1);
+      std = Math.sqrt(variance);
+    }
+    return { mean, median, sum, max, min, std };
   }
 
   // ---------- フィット：関数選択・自動フィット ----------
@@ -479,7 +675,7 @@
     fitState[k].handles = handles;
   }
 
-  [1, 2].forEach(k => {
+  SERIES.forEach(k => {
     document.getElementById(`fit${k}type`).addEventListener("change", e => {
       fitState[k].type = e.target.value || null;
       if (fitState[k].type) seedHandles(k);
@@ -493,28 +689,27 @@
     });
   });
 
-  // ---------- ドラッグ操作 ----------
+  // ---------- ドラッグ操作（複数キャンバス対応） ----------
 
-  function getCanvasPos(evt) {
-    if (!lastGeom) return null;
-    const canvas = document.getElementById("chart");
-    const rect = canvas.getBoundingClientRect();
+  function getCanvasPos(evt, inst) {
+    if (!inst.lastGeom) return null;
+    const rect = inst.canvas.getBoundingClientRect();
     const t = evt.touches && evt.touches[0];
     const clientX = t ? t.clientX : evt.clientX;
     const clientY = t ? t.clientY : evt.clientY;
-    const scaleX = lastGeom.cssW / rect.width;
-    const scaleY = lastGeom.cssH / rect.height;
+    const scaleX = inst.lastGeom.cssW / rect.width;
+    const scaleY = inst.lastGeom.cssH / rect.height;
     return { px: (clientX - rect.left) * scaleX, py: (clientY - rect.top) * scaleY };
   }
 
-  function findHandleAt(px, py) {
-    if (!lastGeom) return null;
+  function findHandleAt(px, py, inst) {
+    if (!inst.lastGeom) return null;
     const hitR = 14;
     let best = null, bestDist = Infinity;
-    [1, 2].forEach(k => {
+    inst.seriesKeys.forEach(k => {
       if (!fitState[k].type) return;
       fitState[k].handles.forEach((h, idx) => {
-        const hx = geomMapX(lastGeom, h.x), hy = geomMapY(lastGeom, h.y);
+        const hx = geomMapX(inst.lastGeom, h.x), hy = geomMapY(inst.lastGeom, h.y);
         const d = Math.hypot(px - hx, py - hy);
         if (d <= hitR && d < bestDist) { bestDist = d; best = { series: k, index: idx }; }
       });
@@ -522,41 +717,83 @@
     return best;
   }
 
-  function onPointerDown(evt) {
-    const pos = getCanvasPos(evt);
+  // 全画面表示中に，実データ点（ドラッグ用ハンドルとは別）をタップしたか判定する
+  function findMarkerAt(px, py, inst, ptsAll) {
+    if (!inst.lastGeom) return null;
+    const hitR = 16;
+    let best = null, bestDist = Infinity;
+    inst.seriesKeys.forEach(k => {
+      ptsAll[k].forEach(pt => {
+        const hx = geomMapX(inst.lastGeom, pt.x), hy = geomMapY(inst.lastGeom, pt.y);
+        const d = Math.hypot(px - hx, py - hy);
+        if (d <= hitR && d < bestDist) { bestDist = d; best = { series: k, point: pt }; }
+      });
+    });
+    return best;
+  }
+
+  function showValueOverlay(k, point) {
+    const overlay = document.getElementById("valueOverlay");
+    const xSym = document.getElementById("xSym").value.trim() || "t";
+    const xUnit = formatUnitDisplay(document.getElementById("xUnit").value.trim());
+    const ySym = document.getElementById(`s${k}Sym`).value.trim();
+    const yUnit = formatUnitDisplay(document.getElementById(`s${k}Unit`).value.trim());
+    overlay.innerHTML = `
+      <div class="row"><span class="sym">${xSym}</span> = ${fmt(point.x)}${xUnit ? " " + xUnit : ""}</div>
+      <div class="row"><span class="swatch-lg" style="background:${seriesColor(k)}"></span><span class="sym">${ySym}</span> = ${fmt(point.y)}${yUnit ? " " + yUnit : ""}</div>
+    `;
+    overlay.hidden = false;
+  }
+
+  function hideValueOverlay() {
+    document.getElementById("valueOverlay").hidden = true;
+  }
+
+  function onPointerDown(evt, inst) {
+    const pos = getCanvasPos(evt, inst);
     if (!pos) return;
-    const hit = findHandleAt(pos.px, pos.py);
+    const hit = findHandleAt(pos.px, pos.py, inst);
     if (hit) {
-      dragging = hit;
-      document.getElementById("chart").style.cursor = "grabbing";
+      dragging = { inst, series: hit.series, index: hit.index };
+      inst.canvas.style.cursor = "grabbing";
       evt.preventDefault();
+      return;
+    }
+    if (isFullscreen && lastPtsAll) {
+      const m = findMarkerAt(pos.px, pos.py, inst, lastPtsAll);
+      if (m) {
+        showValueOverlay(m.series, m.point);
+        evt.preventDefault();
+      } else {
+        hideValueOverlay();
+      }
     }
   }
 
-  function onPointerMove(evt) {
-    const pos = getCanvasPos(evt);
+  function onPointerMove(evt, inst) {
+    const pos = getCanvasPos(evt, inst);
     if (!pos) return;
-    if (dragging) {
+    if (dragging && dragging.inst === inst) {
       const type = fitState[dragging.series].type;
-      let x = geomInvX(lastGeom, pos.px);
-      let y = geomInvY(lastGeom, pos.py);
-      x = Math.min(Math.max(x, lastGeom.xDomain.min), lastGeom.xDomain.max);
-      y = Math.min(Math.max(y, lastGeom.yDomain.min), lastGeom.yDomain.max);
+      let x = geomInvX(inst.lastGeom, pos.px);
+      let y = geomInvY(inst.lastGeom, pos.py);
+      x = Math.min(Math.max(x, inst.lastGeom.xDomain.min), inst.lastGeom.xDomain.max);
+      y = Math.min(Math.max(y, inst.lastGeom.yDomain.min), inst.lastGeom.yDomain.max);
       x = clampX(type, x);
       y = clampY(type, y);
       fitState[dragging.series].handles[dragging.index] = { x, y };
       render();
       evt.preventDefault();
-    } else {
-      const hit = findHandleAt(pos.px, pos.py);
-      document.getElementById("chart").style.cursor = hit ? "grab" : "default";
+    } else if (!dragging) {
+      const hit = findHandleAt(pos.px, pos.py, inst);
+      inst.canvas.style.cursor = hit ? "grab" : "default";
     }
   }
 
   function onPointerUp() {
     if (dragging) {
+      dragging.inst.canvas.style.cursor = "default";
       dragging = null;
-      document.getElementById("chart").style.cursor = "default";
       render();
     }
   }
@@ -605,10 +842,92 @@
     ctx.restore();
   }
 
-  function drawChart() {
-    const canvas = document.getElementById("chart");
+  // データが入っている（アクティブな）系列を，単位が同じもの同士でグループ化してグラフを分ける。
+  // 例：系列1・2 が同じ単位，系列3だけ違う → [ [1,2], [3] ] の2つのグラフになる。
+  function determineGroups(ptsAll) {
+    const active = SERIES.filter(k => ptsAll[k].length > 0);
+    if (active.length === 0) return [SERIES.slice()];
+    const unitOf = k => document.getElementById(`s${k}Unit`).value.trim();
+    const uniqueUnits = [...new Set(active.map(unitOf))];
+    return uniqueUnits.map(u => active.filter(k => unitOf(k) === u));
+  }
+
+  // グループ構成が変わったときだけキャンバスを作り直す（ドラッグ中や再描画のたびに壊さない）
+  function ensureChartInstances(groups) {
+    const signature = groups.map(g => g.join(",")).join("|");
+    if (signature === chartSignature) return;
+    chartSignature = signature;
+    dragging = null;
+
+    const container = document.getElementById("chartArea");
+    container.innerHTML = "";
+    const isMulti = groups.length > 1;
+
+    chartInstances = groups.map(seriesKeys => {
+      const wrap = document.createElement("div");
+      wrap.className = "chartWrap";
+      let titleEls = null;
+      if (isMulti) {
+        const title = document.createElement("div");
+        title.className = "chartTitle";
+        title.innerHTML = seriesKeys.map(k =>
+          `<span class="ttitem"><span class="swatch s${k}"></span><span class="ttext" data-k="${k}"></span></span>`
+        ).join("");
+        wrap.appendChild(title);
+        titleEls = Array.from(title.querySelectorAll(".ttext"));
+      }
+      const canvas = document.createElement("canvas");
+      wrap.appendChild(canvas);
+      container.appendChild(wrap);
+
+      const inst = { seriesKeys, canvas, lastGeom: null, titleEls };
+      canvas.addEventListener("mousedown", e => onPointerDown(e, inst));
+      canvas.addEventListener("mousemove", e => onPointerMove(e, inst));
+      canvas.addEventListener("touchstart", e => onPointerDown(e, inst), { passive: false });
+      canvas.addEventListener("touchmove", e => onPointerMove(e, inst), { passive: false });
+      return inst;
+    });
+  }
+
+  function layoutAndDraw(ptsAll) {
+    lastPtsAll = ptsAll;
+    const groups = determineGroups(ptsAll);
+    ensureChartInstances(groups);
+
+    const isMulti = chartInstances.length > 1;
+    document.getElementById("modeHint").textContent = isMulti
+      ? "縦軸の単位が異なる縦軸があるため，グラフを分けて表示しています（横軸は共通です）"
+      : "";
+
+    const allX = [];
+    SERIES.forEach(k => ptsAll[k].forEach(p => allX.push(p.x)));
+    const xDomain = allX.length ? niceTicks(Math.min(...allX), Math.max(...allX), 6) : niceTicks(0, 10, 6);
+
+    chartInstances.forEach(inst => {
+      if (inst.titleEls) {
+        inst.titleEls.forEach(el => {
+          const k = Number(el.dataset.k);
+          el.textContent = document.getElementById(`s${k}Name`).value.trim() || `縦軸${k}`;
+        });
+      }
+      drawInstance(inst, ptsAll, xDomain, isMulti);
+    });
+  }
+
+  function drawInstance(inst, ptsAll, xDomain, isMulti) {
+    const canvas = inst.canvas;
     const ctx = canvas.getContext("2d");
-    const cssW = 760, cssH = 460;
+    const seriesKeys = inst.seriesKeys;
+    let cssW, cssH;
+    if (isFullscreen) {
+      const n = chartInstances.length;
+      cssW = Math.max(320, Math.min(window.innerWidth - 60, 1600));
+      const availH = window.innerHeight - (n > 1 ? 130 : 110);
+      cssH = Math.max(180, Math.floor(availH / n) - (n > 1 ? 14 : 0));
+    } else {
+      cssW = 760;
+      cssH = isMulti ? 220 : 460;
+    }
     const dpr = window.devicePixelRatio || 1;
     if (canvas.width !== Math.round(cssW * dpr) || canvas.height !== Math.round(cssH * dpr)) {
       canvas.width = Math.round(cssW * dpr);
@@ -621,17 +940,14 @@
     ctx.fillStyle = COLORS.surface;
     ctx.fillRect(0, 0, cssW, cssH);
 
-    const pts1 = getPoints(1);
-    const pts2 = getPoints(2);
-    const allX = [...pts1.map(d => d.x), ...pts2.map(d => d.x)];
-    const allY = [...pts1.map(d => d.y), ...pts2.map(d => d.y)];
+    const allY = [];
+    seriesKeys.forEach(k => ptsAll[k].forEach(p => allY.push(p.y)));
 
-    const margin = { left: 68, right: 24, top: 20, bottom: 54 };
+    const margin = { left: 68, right: 24, top: isMulti ? 14 : 20, bottom: isMulti ? 40 : 54 };
     const plotW = cssW - margin.left - margin.right;
     const plotH = cssH - margin.top - margin.bottom;
 
-    const xDomain = allX.length ? niceTicks(Math.min(...allX), Math.max(...allX), 6) : niceTicks(0, 10, 6);
-    const yDomain = allY.length ? niceTicks(Math.min(...allY), Math.max(...allY), 6) : niceTicks(0, 10, 6);
+    const yDomain = allY.length ? niceTicks(Math.min(...allY), Math.max(...allY), isMulti ? 4 : 6) : niceTicks(0, 10, 6);
 
     const g = { margin, xDomain, yDomain, plotW, plotH, cssW, cssH };
     const mapX = x => geomMapX(g, x);
@@ -664,14 +980,25 @@
     yDomain.ticks.forEach(t => ctx.fillText(fmtTick(t), margin.left - 8, mapY(t)));
 
     // 軸ラベル
-    const xSym = document.getElementById("xSym").value.trim() || "x";
-    const xUnit = document.getElementById("xUnit").value.trim();
-    const ySym = document.getElementById("ySym").value.trim() || "y";
-    const yUnit = document.getElementById("yUnit").value.trim();
-    drawAxisLabelH(ctx, xSym, xUnit, margin.left + plotW / 2, cssH - 12);
+    const xSym = document.getElementById("xSym").value.trim() || "t";
+    const xUnit = formatUnitDisplay(document.getElementById("xUnit").value.trim());
+    let ySym, yUnit;
+    if (seriesKeys.length === 1) {
+      const k = seriesKeys[0];
+      ySym = document.getElementById(`s${k}Sym`).value.trim();
+      yUnit = formatUnitDisplay(document.getElementById(`s${k}Unit`).value.trim());
+    } else {
+      const activeUnits = seriesKeys
+        .filter(k => ptsAll[k].length > 0)
+        .map(k => document.getElementById(`s${k}Unit`).value.trim());
+      const uniqueUnits = [...new Set(activeUnits)];
+      ySym = "";
+      yUnit = uniqueUnits.length === 1 ? formatUnitDisplay(uniqueUnits[0]) : "";
+    }
+    drawAxisLabelH(ctx, xSym, xUnit, margin.left + plotW / 2, cssH - (isMulti ? 8 : 12));
     drawAxisLabelV(ctx, ySym, yUnit, 14, margin.top + plotH / 2);
 
-    if (allX.length === 0) {
+    if (allY.length === 0) {
       ctx.fillStyle = COLORS.muted;
       ctx.font = "14px system-ui, -apple-system, sans-serif";
       ctx.textAlign = "center"; ctx.textBaseline = "middle";
@@ -683,12 +1010,12 @@
     ctx.beginPath();
     ctx.rect(margin.left, margin.top, plotW, plotH);
     ctx.clip();
-    [1, 2].forEach(k => {
+    seriesKeys.forEach(k => {
       const type = fitState[k].type;
       if (!type) return;
       const def = FIT_DEFS[type];
       const params = def.solveExact(fitState[k].handles);
-      ctx.strokeStyle = k === 1 ? COLORS.series1 : COLORS.series2;
+      ctx.strokeStyle = seriesColor(k);
       ctx.lineWidth = 2;
       ctx.lineJoin = "round";
       ctx.lineCap = "round";
@@ -719,17 +1046,16 @@
         ctx.stroke();
       });
     }
-    drawMarkers(pts1, COLORS.series1);
-    drawMarkers(pts2, COLORS.series2);
+    seriesKeys.forEach(k => drawMarkers(ptsAll[k], seriesColor(k)));
 
     // ドラッグ用ハンドル（曲線上の操作点）
-    [1, 2].forEach(k => {
+    seriesKeys.forEach(k => {
       const type = fitState[k].type;
       if (!type) return;
-      const color = k === 1 ? COLORS.series1 : COLORS.series2;
+      const color = seriesColor(k);
       fitState[k].handles.forEach((h, idx) => {
         const px = mapX(h.x), py = mapY(h.y);
-        const isDragging = dragging && dragging.series === k && dragging.index === idx;
+        const isDragging = dragging && dragging.inst === inst && dragging.series === k && dragging.index === idx;
 
         if (isDragging) {
           ctx.save();
@@ -765,24 +1091,22 @@
       });
     });
 
-    lastGeom = g;
+    inst.lastGeom = g;
   }
 
   // ---------- 数式・R² 表示 ----------
 
   function updateNamesUI() {
-    const n1 = document.getElementById("s1Name").value.trim() || "系列1";
-    const n2 = document.getElementById("s2Name").value.trim() || "系列2";
-    document.getElementById("legendName1").textContent = n1;
-    document.getElementById("legendName2").textContent = n2;
-    document.getElementById("thY1").textContent = n1;
-    document.getElementById("thY2").textContent = n2;
-    document.getElementById("fit1title").textContent = n1;
-    document.getElementById("fit2title").textContent = n2;
+    SERIES.forEach(k => {
+      const name = document.getElementById(`s${k}Name`).value.trim() || `縦軸${k}`;
+      document.getElementById(`legendName${k}`).textContent = name;
+      document.getElementById(`thY${k}`).textContent = name;
+      document.getElementById(`fit${k}title`).textContent = name;
+    });
   }
 
-  function updateEqDisplays() {
-    [1, 2].forEach(k => {
+  function updateEqDisplays(ptsAll) {
+    SERIES.forEach(k => {
       const type = fitState[k].type;
       const eqEl = document.getElementById(`fit${k}eq`);
       const r2El = document.getElementById(`fit${k}r2`);
@@ -794,16 +1118,30 @@
       const def = FIT_DEFS[type];
       const params = def.solveExact(fitState[k].handles);
       eqEl.innerHTML = def.eq(params);
-      const pts = getPoints(k);
-      const r2 = computeR2(def, params, pts);
+      const r2 = computeR2(def, params, ptsAll[k]);
       r2El.textContent = r2 === null ? "R² = —" : `R² = ${r2.toFixed(4)}`;
     });
   }
 
+  function updateStatsDisplays(ptsAll) {
+    SERIES.forEach(k => {
+      const pts = ptsAll[k];
+      const stats = computeStats(pts.map(p => p.y));
+      document.getElementById(`stat${k}mean`).textContent = stats ? fmt(stats.mean) : "—";
+      document.getElementById(`stat${k}median`).textContent = stats ? fmt(stats.median) : "—";
+      document.getElementById(`stat${k}max`).textContent = stats ? fmt(stats.max) : "—";
+      document.getElementById(`stat${k}min`).textContent = stats ? fmt(stats.min) : "—";
+      document.getElementById(`stat${k}std`).textContent = (stats && stats.std !== null) ? fmt(stats.std) : "—";
+      document.getElementById(`stat${k}sum`).textContent = stats ? fmt(stats.sum) : "—";
+    });
+  }
+
   function render() {
+    const ptsAll = getAllSeriesPoints();
     updateNamesUI();
-    updateEqDisplays();
-    drawChart();
+    updateEqDisplays(ptsAll);
+    updateStatsDisplays(ptsAll);
+    layoutAndDraw(ptsAll);
   }
 
   // ---------- スプレッドシート風データ表 ----------
@@ -815,6 +1153,7 @@
       <td><input type="text" inputmode="decimal" class="cell" data-col="0"></td>
       <td><input type="text" inputmode="decimal" class="cell" data-col="1"></td>
       <td><input type="text" inputmode="decimal" class="cell" data-col="2"></td>
+      <td><input type="text" inputmode="decimal" class="cell" data-col="3"></td>
       <td><button type="button" class="del-row" title="この行を削除">×</button></td>
     `;
     return tr;
@@ -836,7 +1175,9 @@
   function initTable(n) {
     const tbody = document.getElementById("dataBody");
     tbody.innerHTML = "";
-    for (let i = 0; i < n; i++) tbody.appendChild(createRow(i + 1));
+    const frag = document.createDocumentFragment();
+    for (let i = 0; i < n; i++) frag.appendChild(createRow(i + 1));
+    tbody.appendChild(frag);
   }
 
   document.getElementById("addRowBtn").addEventListener("click", addRow);
@@ -873,7 +1214,7 @@
     const col = parseInt(cell.dataset.col, 10);
 
     function focusCell(r, c) {
-      if (r < 0 || r >= rows.length || c < 0 || c > 2) return;
+      if (r < 0 || r >= rows.length || c < 0 || c > 3) return;
       const target = rows[r].querySelector(`.cell[data-col="${c}"]`);
       if (target) { target.focus(); target.select(); }
     }
@@ -890,7 +1231,7 @@
         if (cell.selectionEnd === cell.value.length) { focusCell(rowIdx, col + 1); e.preventDefault(); }
         break;
       case "Enter":
-        if (rowIdx === rows.length - 1 && col === 2) {
+        if (rowIdx === rows.length - 1 && col === 3) {
           const newRow = addRow();
           newRow.querySelector('.cell[data-col="0"]').focus();
         } else {
@@ -911,17 +1252,26 @@
 
     const startCol = parseInt(cell.dataset.col, 10);
     const tbody = document.getElementById("dataBody");
-    let rows = Array.from(tbody.rows);
-    const startRow = rows.indexOf(cell.closest("tr"));
+    const startRow = Array.from(tbody.rows).indexOf(cell.closest("tr"));
 
     const lines = text.replace(/\r/g, "").split("\n").filter((line, i, arr) => !(i === arr.length - 1 && line === ""));
+
+    // 足りない行はまとめて1回で追加する（1行ずつ追加すると大量データの貼り付けが重くなるため）
+    const neededRows = startRow + lines.length;
+    const currentRows = tbody.rows.length;
+    if (neededRows > currentRows) {
+      const frag = document.createDocumentFragment();
+      for (let i = currentRows; i < neededRows; i++) frag.appendChild(createRow(i + 1));
+      tbody.appendChild(frag);
+    }
+
+    const rows = Array.from(tbody.rows);
     lines.forEach((line, ri) => {
       const cells = line.split("\t");
       const targetRowIdx = startRow + ri;
-      while (targetRowIdx >= rows.length) { addRow(); rows = Array.from(tbody.rows); }
       cells.forEach((val, ci) => {
         const targetCol = startCol + ci;
-        if (targetCol > 2) return;
+        if (targetCol > 3) return;
         const targetCell = rows[targetRowIdx].querySelector(`.cell[data-col="${targetCol}"]`);
         if (targetCell) targetCell.value = val.trim();
       });
@@ -931,18 +1281,39 @@
 
   document.getElementById("labelsBox").addEventListener("input", render);
 
+  // ---------- 全画面表示 ----------
+
+  const fsWrap = document.getElementById("chartFsWrap");
+  const fsBtn = document.getElementById("fullscreenBtn");
+
+  fsBtn.addEventListener("click", () => {
+    if (!document.fullscreenElement) {
+      (fsWrap.requestFullscreen || fsWrap.webkitRequestFullscreen).call(fsWrap);
+    } else {
+      (document.exitFullscreen || document.webkitExitFullscreen).call(document);
+    }
+  });
+
+  function handleFullscreenChange() {
+    const fsEl = document.fullscreenElement || document.webkitFullscreenElement;
+    isFullscreen = fsEl === fsWrap;
+    fsBtn.textContent = isFullscreen ? "✕ 全画面終了" : "⛶ 全画面表示";
+    if (!isFullscreen) hideValueOverlay();
+    render();
+  }
+  document.addEventListener("fullscreenchange", handleFullscreenChange);
+  document.addEventListener("webkitfullscreenchange", handleFullscreenChange);
+
+  window.addEventListener("resize", () => {
+    if (isFullscreen) render();
+  });
+
   // ---------- 初期化 ----------
 
-  populateTypeSelect(document.getElementById("fit1type"));
-  populateTypeSelect(document.getElementById("fit2type"));
-  initTable(20);
+  SERIES.forEach(k => populateTypeSelect(document.getElementById(`fit${k}type`)));
+  initTable(2000);
 
-  const canvasEl = document.getElementById("chart");
-  canvasEl.addEventListener("mousedown", onPointerDown);
-  canvasEl.addEventListener("mousemove", onPointerMove);
   window.addEventListener("mouseup", onPointerUp);
-  canvasEl.addEventListener("touchstart", onPointerDown, { passive: false });
-  canvasEl.addEventListener("touchmove", onPointerMove, { passive: false });
   window.addEventListener("touchend", onPointerUp);
 
   render();
