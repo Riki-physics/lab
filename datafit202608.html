@@ -100,25 +100,6 @@
     overflow: auto;
   }
 
-  .value-overlay {
-    position: fixed;
-    left: 50%; top: 50%;
-    transform: translate(-50%, -50%);
-    background: rgba(17,20,30,0.92);
-    color: #fff;
-    padding: 24px 44px;
-    border-radius: 20px;
-    text-align: center;
-    pointer-events: none;
-    z-index: 999;
-    box-shadow: 0 20px 50px rgba(0,0,0,0.4);
-    border: 1px solid rgba(255,255,255,0.08);
-  }
-  .value-overlay .row { display: flex; align-items: baseline; justify-content: center; gap: 10px; font-size: 44px; white-space: nowrap; }
-  .value-overlay .row + .row { margin-top: 8px; }
-  .value-overlay .sym { font-family: "Times New Roman", Times, serif; font-style: italic; }
-  .value-overlay .swatch-lg { width: 18px; height: 18px; border-radius: 5px; display: inline-block; }
-
   .fitrow {
     display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
     padding: 10px 16px; border-radius: 12px; margin: 10px auto; max-width: 860px;
@@ -178,10 +159,16 @@
     font-family: inherit;
   }
   #dataTable td .cell:focus { outline: 2px solid var(--accent); outline-offset: -2px; background: var(--accent-soft); }
+  #dataTable td .cell.outlier { background: #fde6e6; color: #b83232; font-weight: 700; cursor: help; }
+  #dataTable td .cell.outlier:focus { background: #fbd2d2; }
   .del-row { width: 100%; height: 100%; background: none; border: none; color: #c2c6d1; cursor: pointer; padding: 0; border-radius: 0; font-size: 0.95em; }
   .del-row:hover { background: #fde6e6; color: #d64545; }
 
-  .tablebtns { display: flex; gap: 10px; justify-content: center; margin-top: 12px; }
+  .tablebtns { display: flex; gap: 10px; justify-content: center; margin-top: 12px; flex-wrap: wrap; }
+  #outlierBtn { border-color: #d64545; color: #b83232; }
+  #outlierBtn:hover { background: #fde6e6; border-color: #d64545; color: #b83232; }
+  .outlierHint { font-size: 0.78em; color: var(--text-sub); text-align: center; margin: 10px 4px 0; line-height: 1.55; }
+  .outlierStatus { font-size: 0.82em; color: #b83232; text-align: center; margin: 6px 4px 0; font-weight: 600; min-height: 1.2em; }
 </style>
 </head>
 <body>
@@ -234,8 +221,11 @@
         </div>
         <div class="tablebtns">
           <button id="addRowBtn" type="button">＋ 行を追加</button>
+          <button id="outlierBtn" type="button">外れ値をハイライト</button>
           <button id="clearBtn" type="button">全クリア</button>
         </div>
+        <p class="outlierHint">列（横軸・縦軸1〜3）ごとに平均と標準偏差を計算し，平均から標準偏差の2倍以上離れた値（|z|≥2）を外れ値の候補としてハイライトします。セルにカーソルを合わせると計算根拠が表示されます。</p>
+        <p class="outlierStatus" id="outlierStatus"></p>
       </div>
     </div>
 
@@ -252,9 +242,8 @@
 
         <div id="chartArea"></div>
         <p class="modehint" id="modeHint"></p>
-        <div id="valueOverlay" class="value-overlay" hidden></div>
       </div>
-      <p class="canvashint">グラフ上の点をドラッグすると曲線を調整できます。全画面表示中はデータ点をタップすると数値が拡大表示されます。</p>
+      <p class="canvashint">グラフ上の点をドラッグすると曲線を調整できます。全画面表示中はデータ点をタップすると，その点が拡大し，近くに数値が表示されます。</p>
 
       <div class="fitrow s1">
         <span class="name" id="fit1title">縦軸1</span>
@@ -334,6 +323,7 @@
   let chartSignature = "";
   let lastPtsAll = null;
   let isFullscreen = false;
+  let selectedMarker = null;  // { series, x, y } — 全画面表示でタップして選択中の点
 
   // ---------- 数値フォーマット ----------
 
@@ -636,6 +626,69 @@
     return { mean, median, sum, max, min, std };
   }
 
+  // ---------- 外れ値ハイライト（列ごとに z スコアで判定） ----------
+
+  const OUTLIER_Z = 2; // |z| = |値 − 平均| / 標準偏差 がこの値以上なら外れ値候補とする
+
+  function columnLabel(col) {
+    if (col === 0) return document.getElementById("xSym").value.trim() || "横軸";
+    const name = document.getElementById(`s${col}Name`).value.trim();
+    return name || `縦軸${col}`;
+  }
+
+  function clearOutlierHighlights() {
+    document.querySelectorAll("#dataBody .cell.outlier").forEach(c => {
+      c.classList.remove("outlier");
+      c.removeAttribute("title");
+    });
+    const statusEl = document.getElementById("outlierStatus");
+    if (statusEl) statusEl.textContent = "";
+  }
+
+  function highlightOutliers() {
+    clearOutlierHighlights();
+    let total = 0;
+    const perCol = [0, 0, 0, 0];
+
+    for (let col = 0; col <= 3; col++) {
+      const cells = document.querySelectorAll(`#dataBody .cell[data-col="${col}"]`);
+      const entries = [];
+      cells.forEach(cell => {
+        const v = parseFloat(cell.value);
+        if (Number.isFinite(v)) entries.push({ cell, v });
+      });
+      if (entries.length < 3) continue; // 平均・標準偏差の判定には最低3点必要
+
+      const stats = computeStats(entries.map(e => e.v));
+      if (!stats || !stats.std) continue; // 標準偏差が0（全て同じ値）なら判定不能
+
+      const label = columnLabel(col);
+      entries.forEach(({ cell, v }) => {
+        const z = (v - stats.mean) / stats.std;
+        if (Math.abs(z) >= OUTLIER_Z) {
+          cell.classList.add("outlier");
+          cell.title =
+            `外れ値の候補：「${label}」列の平均 ${fmt(stats.mean)}，標準偏差 ${fmt(stats.std)}\n` +
+            `z = (${fmt(v)} − ${fmt(stats.mean)}) ÷ ${fmt(stats.std)} = ${fmt(z)}\n` +
+            `判定基準：|z| ≥ ${OUTLIER_Z}（平均から標準偏差の${OUTLIER_Z}倍以上離れている）`;
+          total++;
+          perCol[col]++;
+        }
+      });
+    }
+
+    const statusEl = document.getElementById("outlierStatus");
+    if (total === 0) {
+      statusEl.textContent = "外れ値（|z| ≥ 2）は見つかりませんでした。";
+    } else {
+      const detail = [0, 1, 2, 3]
+        .filter(col => perCol[col] > 0)
+        .map(col => `${columnLabel(col)}：${perCol[col]}件`)
+        .join("，");
+      statusEl.textContent = `外れ値（|z| ≥ 2）を ${total} 件ハイライトしました（${detail}）。セルにカーソルを合わせると根拠を確認できます。`;
+    }
+  }
+
   // ---------- フィット：関数選択・自動フィット ----------
 
   function populateTypeSelect(sel) {
@@ -732,23 +785,6 @@
     return best;
   }
 
-  function showValueOverlay(k, point) {
-    const overlay = document.getElementById("valueOverlay");
-    const xSym = document.getElementById("xSym").value.trim() || "t";
-    const xUnit = formatUnitDisplay(document.getElementById("xUnit").value.trim());
-    const ySym = document.getElementById(`s${k}Sym`).value.trim();
-    const yUnit = formatUnitDisplay(document.getElementById(`s${k}Unit`).value.trim());
-    overlay.innerHTML = `
-      <div class="row"><span class="sym">${xSym}</span> = ${fmt(point.x)}${xUnit ? " " + xUnit : ""}</div>
-      <div class="row"><span class="swatch-lg" style="background:${seriesColor(k)}"></span><span class="sym">${ySym}</span> = ${fmt(point.y)}${yUnit ? " " + yUnit : ""}</div>
-    `;
-    overlay.hidden = false;
-  }
-
-  function hideValueOverlay() {
-    document.getElementById("valueOverlay").hidden = true;
-  }
-
   function onPointerDown(evt, inst) {
     const pos = getCanvasPos(evt, inst);
     if (!pos) return;
@@ -761,12 +797,9 @@
     }
     if (isFullscreen && lastPtsAll) {
       const m = findMarkerAt(pos.px, pos.py, inst, lastPtsAll);
-      if (m) {
-        showValueOverlay(m.series, m.point);
-        evt.preventDefault();
-      } else {
-        hideValueOverlay();
-      }
+      selectedMarker = m ? { series: m.series, x: m.point.x, y: m.point.y } : null;
+      if (m) evt.preventDefault();
+      render();
     }
   }
 
@@ -800,18 +833,27 @@
 
   // ---------- 描画 ----------
 
+  // プロジェクター投影でも読みやすいよう，全画面表示中は軸ラベル・目盛りを
+  // さらに大きく・濃くする
+  function axisFontSizes() {
+    return isFullscreen
+      ? { tick: 20, sym: 24, unit: 17 }
+      : { tick: 14, sym: 18, unit: 14 };
+  }
+
   function drawAxisLabelH(ctx, sym, unit, cx, y) {
+    const sizes = axisFontSizes();
     ctx.textBaseline = "alphabetic";
     ctx.textAlign = "left";
-    const symFont = 'italic 16px "Times New Roman", Times, serif';
-    const unitFont = "13px system-ui, -apple-system, sans-serif";
+    const symFont = `italic ${sizes.sym}px "Times New Roman", Times, serif`;
+    const unitFont = `bold ${sizes.unit}px system-ui, -apple-system, sans-serif`;
     ctx.font = symFont;
     const symW = ctx.measureText(sym).width;
     const unitText = unit ? ` [${unit}]` : "";
     ctx.font = unitFont;
     const unitW = ctx.measureText(unitText).width;
     let x = cx - (symW + unitW) / 2;
-    ctx.fillStyle = COLORS.inkSecondary;
+    ctx.fillStyle = COLORS.ink;
     ctx.font = symFont;
     ctx.fillText(sym, x, y);
     x += symW;
@@ -820,25 +862,94 @@
   }
 
   function drawAxisLabelV(ctx, sym, unit, cx, cy) {
+    const sizes = axisFontSizes();
     ctx.save();
     ctx.translate(cx, cy);
     ctx.rotate(-Math.PI / 2);
     ctx.textBaseline = "alphabetic";
     ctx.textAlign = "left";
-    const symFont = 'italic 16px "Times New Roman", Times, serif';
-    const unitFont = "13px system-ui, -apple-system, sans-serif";
+    const symFont = `italic ${sizes.sym}px "Times New Roman", Times, serif`;
+    const unitFont = `bold ${sizes.unit}px system-ui, -apple-system, sans-serif`;
     ctx.font = symFont;
     const symW = ctx.measureText(sym).width;
     const unitText = unit ? ` [${unit}]` : "";
     ctx.font = unitFont;
     const unitW = ctx.measureText(unitText).width;
     let x = -(symW + unitW) / 2;
-    ctx.fillStyle = COLORS.inkSecondary;
+    ctx.fillStyle = COLORS.ink;
     ctx.font = symFont;
     ctx.fillText(sym, x, 0);
     x += symW;
     ctx.font = unitFont;
     ctx.fillText(unitText, x, 0);
+    ctx.restore();
+  }
+
+  // ---------- 選択中の点の吹き出しラベル（全画面表示でタップした点の近くに表示） ----------
+
+  function measureSymValueLine(ctx, sym, rest) {
+    ctx.font = 'italic bold 16px "Times New Roman", Times, serif';
+    const symW = ctx.measureText(sym).width;
+    ctx.font = "bold 15px system-ui, -apple-system, sans-serif";
+    const restW = ctx.measureText(rest).width;
+    return symW + restW;
+  }
+
+  function drawSymValueLine(ctx, sym, rest, x, y, color) {
+    ctx.textAlign = "left"; ctx.textBaseline = "middle";
+    ctx.fillStyle = color;
+    ctx.font = 'italic bold 16px "Times New Roman", Times, serif';
+    ctx.fillText(sym, x, y);
+    const symW = ctx.measureText(sym).width;
+    ctx.font = "bold 15px system-ui, -apple-system, sans-serif";
+    ctx.fillText(rest, x + symW, y);
+  }
+
+  function drawSelectedLabel(ctx, g, marker) {
+    const { margin, plotW, plotH } = g;
+    const px = geomMapX(g, marker.x), py = geomMapY(g, marker.y);
+    const color = seriesColor(marker.series);
+
+    const xSym = document.getElementById("xSym").value.trim() || "t";
+    const xUnit = formatUnitDisplay(document.getElementById("xUnit").value.trim());
+    const ySym = document.getElementById(`s${marker.series}Sym`).value.trim();
+    const yUnit = formatUnitDisplay(document.getElementById(`s${marker.series}Unit`).value.trim());
+    const xRest = ` = ${fmt(marker.x)}${xUnit ? " " + xUnit : ""}`;
+    const yRest = ` = ${fmt(marker.y)}${yUnit ? " " + yUnit : ""}`;
+
+    const w1 = measureSymValueLine(ctx, xSym, xRest);
+    const w2 = measureSymValueLine(ctx, ySym, yRest);
+    const boxW = Math.max(w1, w2) + 28;
+    const lineH = 26;
+    const boxH = lineH * 2 + 16;
+
+    let bx = px + 20;
+    if (bx + boxW > margin.left + plotW) bx = px - 20 - boxW;
+    if (bx < margin.left) bx = Math.min(px + 20, margin.left + plotW - boxW);
+    let by = py - boxH / 2;
+    by = Math.min(Math.max(by, margin.top), margin.top + plotH - boxH);
+
+    ctx.save();
+    ctx.beginPath();
+    if (ctx.roundRect) ctx.roundRect(bx, by, boxW, boxH, 12); else ctx.rect(bx, by, boxW, boxH);
+    ctx.fillStyle = "rgba(17,20,30,0.92)";
+    ctx.fill();
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    // 点とラベルをつなぐ線
+    const boxIsRight = bx > px;
+    ctx.setLineDash([3, 3]);
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(px, py);
+    ctx.lineTo(boxIsRight ? bx : bx + boxW, by + boxH / 2);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    drawSymValueLine(ctx, xSym, xRest, bx + 14, by + 8 + lineH / 2, "#fff");
+    drawSymValueLine(ctx, ySym, yRest, bx + 14, by + 8 + lineH * 1.5, color);
     ctx.restore();
   }
 
@@ -901,7 +1012,10 @@
 
     const allX = [];
     SERIES.forEach(k => ptsAll[k].forEach(p => allX.push(p.x)));
-    const xDomain = allX.length ? niceTicks(Math.min(...allX), Math.max(...allX), 6) : niceTicks(0, 10, 6);
+    // (0,0) の原点が必ずグラフ内に収まるよう，軸の範囲に 0 を含める
+    const xDomain = allX.length
+      ? niceTicks(Math.min(0, ...allX), Math.max(0, ...allX), 6)
+      : niceTicks(0, 10, 6);
 
     chartInstances.forEach(inst => {
       if (inst.titleEls) {
@@ -943,11 +1057,17 @@
     const allY = [];
     seriesKeys.forEach(k => ptsAll[k].forEach(p => allY.push(p.y)));
 
-    const margin = { left: 68, right: 24, top: isMulti ? 14 : 20, bottom: isMulti ? 40 : 54 };
+    // プロジェクター投影用に全画面表示中は目盛りラベルが大きくなるので，余白も広げる
+    const margin = isFullscreen
+      ? { left: 90, right: 28, top: isMulti ? 20 : 26, bottom: isMulti ? 54 : 70 }
+      : { left: 72, right: 24, top: isMulti ? 14 : 20, bottom: isMulti ? 42 : 56 };
     const plotW = cssW - margin.left - margin.right;
     const plotH = cssH - margin.top - margin.bottom;
 
-    const yDomain = allY.length ? niceTicks(Math.min(...allY), Math.max(...allY), isMulti ? 4 : 6) : niceTicks(0, 10, 6);
+    // (0,0) の原点が必ずグラフ内に収まるよう，軸の範囲に 0 を含める
+    const yDomain = allY.length
+      ? niceTicks(Math.min(0, ...allY), Math.max(0, ...allY), isMulti ? 4 : 6)
+      : niceTicks(0, 10, 6);
 
     const g = { margin, xDomain, yDomain, plotW, plotH, cssW, cssH };
     const mapX = x => geomMapX(g, x);
@@ -971,13 +1091,14 @@
     ctx.beginPath(); ctx.moveTo(margin.left, margin.top + plotH); ctx.lineTo(margin.left + plotW, margin.top + plotH); ctx.stroke();
     ctx.beginPath(); ctx.moveTo(margin.left, margin.top); ctx.lineTo(margin.left, margin.top + plotH); ctx.stroke();
 
-    // 目盛りラベル
-    ctx.fillStyle = COLORS.muted;
-    ctx.font = "12px system-ui, -apple-system, sans-serif";
+    // 目盛りラベル（プロジェクター投影でも読めるよう濃く・大きく表示）
+    const tickSizes = axisFontSizes();
+    ctx.fillStyle = COLORS.ink;
+    ctx.font = `bold ${tickSizes.tick}px system-ui, -apple-system, sans-serif`;
     ctx.textAlign = "center"; ctx.textBaseline = "top";
-    xDomain.ticks.forEach(t => ctx.fillText(fmtTick(t), mapX(t), margin.top + plotH + 6));
+    xDomain.ticks.forEach(t => ctx.fillText(fmtTick(t), mapX(t), margin.top + plotH + (isFullscreen ? 10 : 7)));
     ctx.textAlign = "right"; ctx.textBaseline = "middle";
-    yDomain.ticks.forEach(t => ctx.fillText(fmtTick(t), margin.left - 8, mapY(t)));
+    yDomain.ticks.forEach(t => ctx.fillText(fmtTick(t), margin.left - (isFullscreen ? 12 : 9), mapY(t)));
 
     // 軸ラベル
     const xSym = document.getElementById("xSym").value.trim() || "t";
@@ -1033,20 +1154,28 @@
     });
     ctx.restore();
 
-    // データ点
-    function drawMarkers(pts, color) {
+    // データ点（全画面表示でタップ選択中の点は拡大して目立たせる）
+    function drawMarkers(pts, color, k) {
       pts.forEach(({ x, y }) => {
+        const isSelected = isFullscreen && selectedMarker && selectedMarker.series === k &&
+          Math.abs(selectedMarker.x - x) < 1e-9 && Math.abs(selectedMarker.y - y) < 1e-9;
         const px = mapX(x), py = mapY(y);
+        if (isSelected) {
+          ctx.beginPath();
+          ctx.arc(px, py, 16, 0, Math.PI * 2);
+          ctx.fillStyle = color + "33";
+          ctx.fill();
+        }
         ctx.beginPath();
-        ctx.arc(px, py, 5, 0, Math.PI * 2);
+        ctx.arc(px, py, isSelected ? 10 : 5, 0, Math.PI * 2);
         ctx.fillStyle = color;
         ctx.fill();
-        ctx.lineWidth = 2;
+        ctx.lineWidth = isSelected ? 3 : 2;
         ctx.strokeStyle = COLORS.surface;
         ctx.stroke();
       });
     }
-    seriesKeys.forEach(k => drawMarkers(ptsAll[k], seriesColor(k)));
+    seriesKeys.forEach(k => drawMarkers(ptsAll[k], seriesColor(k), k));
 
     // ドラッグ用ハンドル（曲線上の操作点）
     seriesKeys.forEach(k => {
@@ -1090,6 +1219,11 @@
         }
       });
     });
+
+    // 選択中の点の吹き出しラベル
+    if (isFullscreen && selectedMarker && seriesKeys.includes(selectedMarker.series)) {
+      drawSelectedLabel(ctx, g, selectedMarker);
+    }
 
     inst.lastGeom = g;
   }
@@ -1182,14 +1316,20 @@
 
   document.getElementById("addRowBtn").addEventListener("click", addRow);
 
+  document.getElementById("outlierBtn").addEventListener("click", highlightOutliers);
+
   document.getElementById("clearBtn").addEventListener("click", () => {
     if (!confirm("入力したデータをすべて消去します。よろしいですか？")) return;
     document.querySelectorAll("#dataBody .cell").forEach(inp => (inp.value = ""));
+    clearOutlierHighlights();
     render();
   });
 
   document.getElementById("dataBody").addEventListener("input", e => {
-    if (e.target.matches(".cell")) render();
+    if (e.target.matches(".cell")) {
+      clearOutlierHighlights(); // 値が変わると平均・標準偏差も変わるため，古いハイライトは消す
+      render();
+    }
   });
 
   document.getElementById("dataBody").addEventListener("click", e => {
@@ -1198,6 +1338,7 @@
       if (tbody.rows.length > 1) {
         e.target.closest("tr").remove();
         renumberRows();
+        clearOutlierHighlights();
         render();
       }
     }
@@ -1298,7 +1439,7 @@
     const fsEl = document.fullscreenElement || document.webkitFullscreenElement;
     isFullscreen = fsEl === fsWrap;
     fsBtn.textContent = isFullscreen ? "✕ 全画面終了" : "⛶ 全画面表示";
-    if (!isFullscreen) hideValueOverlay();
+    if (!isFullscreen) selectedMarker = null;
     render();
   }
   document.addEventListener("fullscreenchange", handleFullscreenChange);
