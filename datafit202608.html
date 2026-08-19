@@ -140,7 +140,7 @@
   }
 
   /* --- スプレッドシート風データ表 --- */
-  .tablewrap { max-height: 560px; overflow-y: auto; border: 1px solid var(--border-soft); border-radius: 12px; }
+  .tablewrap { position: relative; max-height: 560px; overflow-y: auto; border: 1px solid var(--border-soft); border-radius: 12px; }
   table#dataTable { border-collapse: collapse; width: 100%; font-size: 0.95em; table-layout: fixed; }
   #dataTable th {
     background: #eef2fb; color: #33415c; font-weight: 700; border: 1px solid #e2e8f0;
@@ -159,10 +159,41 @@
     font-family: inherit;
   }
   #dataTable td .cell:focus { outline: 2px solid var(--accent); outline-offset: -2px; background: var(--accent-soft); }
+  /* オートフィル：選択範囲と，これから埋まる範囲のプレビュー */
+  #dataTable td .cell.sel { background: rgba(42,120,214,0.16); }
+  #dataTable td .cell.fillpv { background: rgba(42,120,214,0.07); box-shadow: inset 0 0 0 1px rgba(42,120,214,0.45); }
   #dataTable td .cell.outlier { background: #fde6e6; color: #b83232; font-weight: 700; cursor: help; }
   #dataTable td .cell.outlier:focus { background: #fbd2d2; }
   .del-row { width: 100%; height: 100%; background: none; border: none; color: #c2c6d1; cursor: pointer; padding: 0; border-radius: 0; font-size: 0.95em; }
   .del-row:hover { background: #fde6e6; color: #d64545; }
+
+  /* 選択範囲の右下に出るフィルハンドル（Excel の■と同じ） */
+  #fillHandle {
+    position: absolute; display: none; width: 10px; height: 10px;
+    background: var(--accent); border: 1.5px solid #fff; border-radius: 2px;
+    box-shadow: 0 0 0 1px rgba(42,120,214,0.35);
+    transform: translate(-50%, -50%); cursor: ns-resize; touch-action: none;
+  }
+  #fillTip {
+    position: absolute; display: none; z-index: 3; pointer-events: none;
+    background: #33415c; color: #fff; font-size: 0.75em; font-weight: 600;
+    padding: 3px 7px; border-radius: 6px; white-space: nowrap;
+    transform: translate(calc(-100% - 10px), -50%);
+  }
+
+  .fillbar {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 6px;
+    margin-top: 12px; padding: 9px 11px; border: 1px solid var(--border-soft);
+    border-radius: 10px; background: #f8fafd; font-size: 0.82em; color: var(--text-sub);
+  }
+  .fillbar .fillbar-title { font-weight: 700; color: var(--accent); margin-right: 2px; }
+  .fillbar .fillgrp { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
+  .fillbar input[type=number] {
+    width: 62px; padding: 4px 6px; border-radius: 7px; border: 1px solid var(--border-soft);
+    background: #fff; font-size: 1em; font-family: inherit; text-align: right;
+  }
+  .fillbar button { padding: 5px 10px; font-size: 1em; }
+  .fillStatus { font-size: 0.8em; color: var(--accent); text-align: center; margin: 6px 4px 0; font-weight: 600; min-height: 1.2em; }
 
   .tablebtns { display: flex; gap: 10px; justify-content: center; margin-top: 12px; flex-wrap: wrap; }
   #outlierBtn { border-color: #d64545; color: #b83232; }
@@ -218,7 +249,22 @@
             </thead>
             <tbody id="dataBody"></tbody>
           </table>
+          <div id="fillHandle" title="下（または上）へドラッグするとオートフィル"></div>
+          <div id="fillTip"></div>
         </div>
+
+        <div class="fillbar">
+          <span class="fillbar-title">オートフィル</span>
+          <span class="fillgrp">選んだ並びで <input type="number" id="fillToRow" min="1" step="1" value="20"> 行目まで</span>
+          <button id="fillDownBtn" type="button">▼ 埋める</button>
+          <button id="fillMatchBtn" type="button">他の列の最終行まで</button>
+        </div>
+        <p class="outlierHint">
+          セルをドラッグ（またはクリック → Shift＋クリック）してもとになる並びを選び，右下の <b style="color:var(--accent)">■</b> を下へドラッグするか，上のボタンで続きを自動入力します。
+          <b>1, 2</b> を選べば <b>3, 4, 5…</b>，<b>0, 0.5</b> なら <b>1, 1.5…</b>，<b>1, 1</b>（または1つのセル）なら同じ値がそのまま続きます。
+        </p>
+        <p class="fillStatus" id="fillStatus"></p>
+
         <div class="tablebtns">
           <button id="addRowBtn" type="button">＋ 行を追加</button>
           <button id="outlierBtn" type="button">外れ値をハイライト</button>
@@ -1322,6 +1368,7 @@
     if (!confirm("入力したデータをすべて消去します。よろしいですか？")) return;
     document.querySelectorAll("#dataBody .cell").forEach(inp => (inp.value = ""));
     clearOutlierHighlights();
+    clearSelection();
     render();
   });
 
@@ -1339,6 +1386,7 @@
         e.target.closest("tr").remove();
         renumberRows();
         clearOutlierHighlights();
+        clearSelection();
         render();
       }
     }
@@ -1357,7 +1405,20 @@
     function focusCell(r, c) {
       if (r < 0 || r >= rows.length || c < 0 || c > 3) return;
       const target = rows[r].querySelector(`.cell[data-col="${c}"]`);
-      if (target) { target.focus(); target.select(); }
+      if (target) { target.focus(); target.select(); setSelection(r, c); }
+    }
+
+    // Shift ＋ 矢印キーで選択範囲を広げる（オートフィルのもとになる範囲を選ぶ）
+    if (e.shiftKey && e.key.startsWith("Arrow") && selAnchor) {
+      const f = selFocus || { r: rowIdx, c: col };
+      const dr = e.key === "ArrowDown" ? 1 : e.key === "ArrowUp" ? -1 : 0;
+      const dc = e.key === "ArrowRight" ? 1 : e.key === "ArrowLeft" ? -1 : 0;
+      const nr = Math.min(rows.length - 1, Math.max(0, f.r + dr));
+      const nc = Math.min(3, Math.max(0, f.c + dc));
+      selFocus = { r: nr, c: nc };
+      paintSelection();
+      e.preventDefault();
+      return;
     }
 
     switch (e.key) {
@@ -1418,6 +1479,338 @@
       });
     });
     render();
+  });
+
+  // ---------- オートフィル（表計算ソフトのフィルハンドルと同じ操作） ----------
+
+  const tableWrap = document.querySelector(".tablewrap");
+  const fillHandle = document.getElementById("fillHandle");
+  const fillTip = document.getElementById("fillTip");
+  const fillStatus = document.getElementById("fillStatus");
+
+  let selAnchor = null;   // 選択の起点 {r, c}
+  let selFocus = null;    // 選択の終点 {r, c}
+  let selDragging = false;
+  let selCaretFixed = false; // ドラッグが隣のセルに及んだ時点で，入力欄内の文字選択を解除したか
+  let fillDragTo = null;  // フィルハンドルをドラッグ中の到達行（null ならドラッグしていない）
+
+  function tbodyEl() { return document.getElementById("dataBody"); }
+  function rowCount() { return tbodyEl().rows.length; }
+
+  function cellAt(r, c) {
+    const tr = tbodyEl().rows[r];
+    return tr ? tr.cells[c + 1].firstElementChild : null;
+  }
+  function cellPos(cell) {
+    return { r: cell.closest("tr").sectionRowIndex, c: parseInt(cell.dataset.col, 10) };
+  }
+  function selRange() {
+    if (!selAnchor || !selFocus) return null;
+    return {
+      r1: Math.min(selAnchor.r, selFocus.r), r2: Math.max(selAnchor.r, selFocus.r),
+      c1: Math.min(selAnchor.c, selFocus.c), c2: Math.max(selAnchor.c, selFocus.c)
+    };
+  }
+
+  // 画面上の縦位置から行番号を求める（全行が同じ高さであることを利用）
+  function rowFromClientY(clientY) {
+    const tb = tbodyEl();
+    if (!tb.rows.length) return 0;
+    const first = tb.rows[0].getBoundingClientRect();
+    const h = first.height || 30;
+    const idx = Math.floor((clientY - first.top) / h);
+    return Math.max(0, Math.min(rowCount() - 1, idx));
+  }
+
+  let paintedSel = [];
+  let paintedPv = [];
+
+  function paintSelection() {
+    paintedSel.forEach(el => el.classList.remove("sel"));
+    paintedSel = [];
+    const s = selRange();
+    if (!s) { fillHandle.style.display = "none"; return; }
+    for (let r = s.r1; r <= s.r2; r++) {
+      for (let c = s.c1; c <= s.c2; c++) {
+        const el = cellAt(r, c);
+        if (el) { el.classList.add("sel"); paintedSel.push(el); }
+      }
+    }
+    const corner = cellAt(s.r2, s.c2);
+    if (!corner) { fillHandle.style.display = "none"; return; }
+    const wr = tableWrap.getBoundingClientRect();
+    const tdr = corner.parentElement.getBoundingClientRect();
+    fillHandle.style.left = (tdr.right - wr.left + tableWrap.scrollLeft) + "px";
+    fillHandle.style.top = (tdr.bottom - wr.top + tableWrap.scrollTop) + "px";
+    fillHandle.style.display = "block";
+  }
+
+  function clearFillPreview() {
+    paintedPv.forEach(el => el.classList.remove("fillpv"));
+    paintedPv = [];
+    fillTip.style.display = "none";
+  }
+
+  function clearSelection() {
+    selAnchor = selFocus = null;
+    clearFillPreview();
+    paintSelection();
+  }
+
+  function setSelection(r, c) {
+    selAnchor = { r, c };
+    selFocus = { r, c };
+    paintSelection();
+  }
+
+  // --- 並びの推測 -------------------------------------------------
+  // 数値が等差で並んでいれば続きを計算し，そうでなければ選択範囲をそのまま繰り返す。
+  // 1, 2 → 3, 4, 5… ／ 0, 0.5 → 1, 1.5… ／ 1, 1 → 1, 1, 1… ／ 1つだけ選んだ場合はコピー
+  function decimalsOf(list) {
+    let dec = 0;
+    for (const s of list) {
+      const m = String(s).trim().match(/^[+-]?\d*(?:\.(\d+))?$/);
+      if (!m) return null; // 指数表記など，桁数を決められない書き方が混ざっている
+      dec = Math.max(dec, m[1] ? m[1].length : 0);
+    }
+    return dec;
+  }
+
+  function extendPattern(src, count, down) {
+    const out = [];
+    const trimmed = src.map(s => s.trim());
+    const nums = trimmed.map(s => parseFloat(s));
+    const allNum = trimmed.every(s => s !== "") && nums.every(Number.isFinite);
+
+    if (allNum && trimmed.length >= 2) {
+      const d = nums[1] - nums[0];
+      const scale = Math.max(...nums.map(Math.abs), 1);
+      let arithmetic = true;
+      for (let i = 1; i < nums.length; i++) {
+        if (Math.abs((nums[i] - nums[i - 1]) - d) > 1e-9 * scale) { arithmetic = false; break; }
+      }
+      if (arithmetic) {
+        const dec = decimalsOf(trimmed);
+        const base = down ? nums[nums.length - 1] : nums[0];
+        const step = down ? d : -d;
+        for (let i = 1; i <= count; i++) {
+          const v = base + step * i;
+          out.push(String(dec === null ? Number(v.toPrecision(12)) : Number(v.toFixed(dec))));
+        }
+        return out;
+      }
+    }
+    // 等差でない・数値でない場合は，選んだ並びをそのまま繰り返す
+    for (let i = 0; i < count; i++) {
+      const idx = down ? (i % trimmed.length) : (trimmed.length - 1 - (i % trimmed.length));
+      out.push(src[idx]);
+    }
+    return out;
+  }
+
+  // 選択範囲 s の並びを toRow 行目（0 始まり）まで伸ばす。埋めた行数を返す
+  function applyFill(s, toRow) {
+    const down = toRow > s.r2;
+    const count = down ? (toRow - s.r2) : (s.r1 - toRow);
+    if (count <= 0) return 0;
+
+    for (let c = s.c1; c <= s.c2; c++) {
+      const src = [];
+      for (let r = s.r1; r <= s.r2; r++) {
+        const el = cellAt(r, c);
+        src.push(el ? el.value : "");
+      }
+      if (src.every(v => v.trim() === "")) continue; // 空の列は触らない
+      const vals = extendPattern(src, count, down);
+      for (let i = 0; i < count; i++) {
+        const el = cellAt(down ? s.r2 + 1 + i : s.r1 - 1 - i, c);
+        if (el) el.value = vals[i];
+      }
+    }
+
+    // 埋めた範囲まで選択を広げる（表計算ソフトと同じ挙動）
+    selAnchor = { r: down ? s.r1 : toRow, c: s.c1 };
+    selFocus = { r: down ? toRow : s.r2, c: s.c2 };
+    clearOutlierHighlights();
+    paintSelection();
+    render();
+    return count;
+  }
+
+  // --- マウスによる範囲選択 ----------------------------------------
+  tbodyEl().addEventListener("mousedown", e => {
+    if (!e.target.matches(".cell")) return;
+    const p = cellPos(e.target);
+    fillStatus.textContent = "";
+    if (e.shiftKey && selAnchor) {
+      selFocus = p;
+      paintSelection();
+      e.preventDefault();
+      return;
+    }
+    selDragging = true;
+    selCaretFixed = false;
+    setSelection(p.r, p.c);
+  });
+
+  tbodyEl().addEventListener("mouseover", e => {
+    if (!selDragging || !e.target.matches(".cell")) return;
+    const p = cellPos(e.target);
+    if (selFocus && p.r === selFocus.r && p.c === selFocus.c) return;
+    if (!selCaretFixed) {
+      // 入力欄内の文字選択が残ると紛らわしいので，範囲選択に切り替わった時点で解除する
+      const a = cellAt(selAnchor.r, selAnchor.c);
+      if (a) a.setSelectionRange(a.value.length, a.value.length);
+      selCaretFixed = true;
+    }
+    selFocus = p;
+    paintSelection();
+  });
+
+  window.addEventListener("mouseup", () => { selDragging = false; });
+
+  // --- フィルハンドルのドラッグ ------------------------------------
+  let fillAutoScroll = null;
+  let fillLastY = 0;
+
+  function startFillDrag(e, clientY) {
+    if (!selRange()) return;
+    e.preventDefault();
+    fillDragTo = null;
+    fillStatus.textContent = "";
+    // 端で止まったままでもスクロールし続けるようにする
+    clearInterval(fillAutoScroll);
+    fillAutoScroll = setInterval(() => {
+      const wr = tableWrap.getBoundingClientRect();
+      if (fillLastY > wr.bottom - 26 || fillLastY < wr.top + 26) updateFillDrag(fillLastY);
+    }, 60);
+    updateFillDrag(clientY);
+  }
+
+  function updateFillDrag(clientY) {
+    const s = selRange();
+    if (!s) return;
+    fillLastY = clientY;
+    clearFillPreview();
+
+    // 表の端に近づいたら自動でスクロールする
+    const wr = tableWrap.getBoundingClientRect();
+    if (clientY > wr.bottom - 26) tableWrap.scrollTop += 18;
+    else if (clientY < wr.top + 26) tableWrap.scrollTop -= 18;
+
+    const r = rowFromClientY(clientY);
+    fillDragTo = (r > s.r2 || r < s.r1) ? r : null;
+    if (fillDragTo === null) return;
+
+    const down = fillDragTo > s.r2;
+    for (let rr = down ? s.r2 + 1 : fillDragTo; rr <= (down ? fillDragTo : s.r1 - 1); rr++) {
+      for (let c = s.c1; c <= s.c2; c++) {
+        const el = cellAt(rr, c);
+        if (el) { el.classList.add("fillpv"); paintedPv.push(el); }
+      }
+    }
+
+    // 最後に入る値を吹き出しで予告する
+    const count = down ? fillDragTo - s.r2 : s.r1 - fillDragTo;
+    const src = [];
+    for (let rr = s.r1; rr <= s.r2; rr++) {
+      const el = cellAt(rr, s.c1);
+      src.push(el ? el.value : "");
+    }
+    const last = src.every(v => v.trim() === "") ? "" : extendPattern(src, count, down)[count - 1];
+    fillTip.textContent = `${fillDragTo + 1} 行目まで${last !== "" ? "（… " + last + "）" : ""}`;
+    const td = cellAt(fillDragTo, s.c2).parentElement;
+    const tdr = td.getBoundingClientRect();
+    fillTip.style.left = (tdr.right - wr.left + tableWrap.scrollLeft) + "px";
+    fillTip.style.top = (tdr.top + tdr.height / 2 - wr.top + tableWrap.scrollTop) + "px";
+    fillTip.style.display = "block";
+  }
+
+  function endFillDrag() {
+    clearInterval(fillAutoScroll);
+    fillAutoScroll = null;
+    const s = selRange();
+    const to = fillDragTo;
+    fillDragTo = null;
+    clearFillPreview();
+    if (s && to !== null) {
+      const n = applyFill(s, to);
+      if (n > 0) fillStatus.textContent = `${n} 行分をオートフィルしました。`;
+    }
+  }
+
+  fillHandle.addEventListener("mousedown", e => {
+    startFillDrag(e, e.clientY);
+    const onMove = ev => updateFillDrag(ev.clientY);
+    const onUp = () => {
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+      endFillDrag();
+    };
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+  });
+
+  fillHandle.addEventListener("touchstart", e => {
+    startFillDrag(e, e.touches[0].clientY);
+    const onMove = ev => { ev.preventDefault(); updateFillDrag(ev.touches[0].clientY); };
+    const onEnd = () => {
+      window.removeEventListener("touchmove", onMove);
+      window.removeEventListener("touchend", onEnd);
+      endFillDrag();
+    };
+    window.addEventListener("touchmove", onMove, { passive: false });
+    window.addEventListener("touchend", onEnd);
+  }, { passive: false });
+
+  // --- ボタンによるオートフィル（ドラッグが難しい場合用） ------------
+  function fillToRowIndex(toIdx, label) {
+    const s = selRange();
+    if (!s) {
+      fillStatus.textContent = "先に，もとになるセル（例：1 と 2）を選んでください。";
+      return;
+    }
+    if (toIdx <= s.r2) {
+      fillStatus.textContent = `選んだ範囲（${s.r2 + 1} 行目）より下の行を指定してください。`;
+      return;
+    }
+    const n = applyFill(s, toIdx);
+    fillStatus.textContent = n > 0
+      ? `${s.r2 + 2} 〜 ${toIdx + 1} 行目（${n} 行分）を${label}オートフィルしました。`
+      : "埋める行がありませんでした。";
+  }
+
+  document.getElementById("fillDownBtn").addEventListener("click", () => {
+    const to = parseInt(document.getElementById("fillToRow").value, 10);
+    if (!Number.isFinite(to) || to < 1) {
+      fillStatus.textContent = "何行目まで埋めるかを入力してください。";
+      return;
+    }
+    fillToRowIndex(Math.min(to - 1, rowCount() - 1), "");
+  });
+
+  document.getElementById("fillMatchBtn").addEventListener("click", () => {
+    const s = selRange();
+    if (!s) {
+      fillStatus.textContent = "先に，もとになるセル（例：1 と 2）を選んでください。";
+      return;
+    }
+    // 選択していない列で，最後に値が入っている行を探す
+    let last = -1;
+    for (let r = rowCount() - 1; r >= 0; r--) {
+      let has = false;
+      for (let c = 0; c <= 3; c++) {
+        if (c >= s.c1 && c <= s.c2) continue;
+        const el = cellAt(r, c);
+        if (el && el.value.trim() !== "") { has = true; break; }
+      }
+      if (has) { last = r; break; }
+    }
+    if (last < 0) {
+      fillStatus.textContent = "他の列にデータが入っていません。行数を指定して「▼ 埋める」を使ってください。";
+      return;
+    }
+    fillToRowIndex(last, "他の列の最終行まで");
   });
 
   document.getElementById("labelsBox").addEventListener("input", render);
