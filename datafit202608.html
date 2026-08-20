@@ -1444,19 +1444,74 @@
     }
   });
 
+  // ---------- 貼り付けデータの解釈 ----------
+  // 表計算ソフトはタブ区切り，センサーアプリなどは各セルを "…" で囲んだ CSV で
+  // クリップボードに入れてくることがある。引用符を外し，全角数字や桁区切りも直してから取り込む。
+
+  function normalizeNumberText(v) {
+    let s = String(v).replace(/[　 ]/g, " ").trim();
+    s = s.replace(/[０-９]/g, ch => String.fromCharCode(ch.charCodeAt(0) - 0xFEE0));
+    s = s.replace(/．/g, ".").replace(/－/g, "-").replace(/＋/g, "+").replace(/，/g, ",");
+    if (/^[+-]?\d{1,3}(,\d{3})+(\.\d+)?$/.test(s)) s = s.replace(/,/g, ""); // 1,234 → 1234
+    return s;
+  }
+
+  function parseClipboardTable(text) {
+    const s = text.replace(/^﻿/, "").replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+
+    // 引用符の外にある区切り文字を見て，タブ区切りかカンマ区切りかを決める。
+    // カンマは「複数行ある」または「引用符付き」のときだけ区切りとみなす
+    // （単独の 1,234 のような桁区切りを列と誤認しないため）。
+    let inQuote = false, hasTab = false, hasComma = false, hasQuote = false;
+    for (let i = 0; i < s.length; i++) {
+      const ch = s[i];
+      if (ch === '"') { inQuote = !inQuote; hasQuote = true; continue; }
+      if (inQuote) continue;
+      if (ch === "\t") hasTab = true;
+      else if (ch === ",") hasComma = true;
+    }
+    const delim = hasTab ? "\t"
+      : (hasComma && (s.includes("\n") || hasQuote) ? "," : null);
+
+    const rows = [];
+    let row = [], field = "", quoted = false;
+    const endField = () => { row.push(field); field = ""; };
+    const endRow = () => { endField(); rows.push(row); row = []; };
+    for (let i = 0; i < s.length; i++) {
+      const ch = s[i];
+      if (quoted) {
+        if (ch === '"') {
+          if (s[i + 1] === '"') { field += '"'; i++; }  // "" は引用符そのもの
+          else quoted = false;
+        } else field += ch;
+      } else if (ch === '"') {
+        quoted = true;
+      } else if (delim && ch === delim) {
+        endField();
+      } else if (ch === "\n") {
+        endRow();
+      } else field += ch;
+    }
+    if (field !== "" || row.length) endRow();
+    while (rows.length && rows[rows.length - 1].every(v => v.trim() === "")) rows.pop();
+    return rows.map(r => r.map(normalizeNumberText));
+  }
+
   // 表計算ソフトからの貼り付け（タブ区切り・複数セル）に対応
   document.getElementById("dataBody").addEventListener("paste", e => {
     const cell = e.target;
     if (!cell.matches(".cell")) return;
     const text = (e.clipboardData || window.clipboardData).getData("text");
-    if (!text.includes("\t") && !text.includes("\n")) return; // 単一値は通常のペーストに任せる
+    // 区切りも引用符も無い単一の値は，通常のペースト（カーソル位置に挿入）に任せる
+    if (!/[\t\n\r",]/.test(text)) return;
     e.preventDefault();
 
     const startCol = parseInt(cell.dataset.col, 10);
     const tbody = document.getElementById("dataBody");
     const startRow = Array.from(tbody.rows).indexOf(cell.closest("tr"));
 
-    const lines = text.replace(/\r/g, "").split("\n").filter((line, i, arr) => !(i === arr.length - 1 && line === ""));
+    const lines = parseClipboardTable(text);
+    if (!lines.length) return;
 
     // 足りない行はまとめて1回で追加する（1行ずつ追加すると大量データの貼り付けが重くなるため）
     const neededRows = startRow + lines.length;
@@ -1468,16 +1523,16 @@
     }
 
     const rows = Array.from(tbody.rows);
-    lines.forEach((line, ri) => {
-      const cells = line.split("\t");
+    lines.forEach((cells, ri) => {
       const targetRowIdx = startRow + ri;
       cells.forEach((val, ci) => {
         const targetCol = startCol + ci;
         if (targetCol > 3) return;
         const targetCell = rows[targetRowIdx].querySelector(`.cell[data-col="${targetCol}"]`);
-        if (targetCell) targetCell.value = val.trim();
+        if (targetCell) targetCell.value = val;
       });
     });
+    clearOutlierHighlights();
     render();
   });
 
