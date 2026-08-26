@@ -64,6 +64,8 @@
     outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); background: #fff;
   }
   .labelsbox .namefield input[type=text] { width: 104px; }
+  .labelsbox .preset { flex-basis: 100%; justify-content: center; }
+  .labelsbox .preset select { min-width: 190px; }
   .labelsbox .sep { width: 1px; align-self: stretch; background: var(--border-soft); margin: 0 4px; }
   .labelsbox .suffix { font-size: 0.85em; color: var(--text-sub); }
 
@@ -178,6 +180,24 @@
   </p>
 
   <div class="box labelsbox" id="labelsBox">
+    <div class="field preset"><label for="yPreset">縦軸プリセット</label>
+      <select id="yPreset">
+        <option value="custom">任意入力</option>
+        <option value="acceleration" selected>加速度 a [m/s^2]</option>
+        <option value="velocity">速度 v [m/s]</option>
+        <option value="displacement">変位 x [m]</option>
+        <option value="time">時間 t [s]</option>
+        <option value="force">力 F [N]</option>
+        <option value="mass">質量 m [kg]</option>
+        <option value="energy">エネルギー E [J]</option>
+        <option value="power">仕事率 P [W]</option>
+        <option value="voltage">電圧 V [V]</option>
+        <option value="current">電流 I [A]</option>
+        <option value="resistance">電気抵抗 R [Ω]</option>
+        <option value="frequency">振動数 f [Hz]</option>
+        <option value="temperature">温度 T [°C]</option>
+      </select>
+    </div>
     <div class="field namefield"><label>測定量</label><input type="text" id="yName" value="測定値"></div>
     <div class="field"><label>記号</label><input type="text" id="ySym" value="a"></div>
     <div class="field"><label>単位</label><input type="text" id="yUnit" value="m/s^2" title="^2 → ²，_1 → ₁ のように ^ と _ で上付き・下付きを入力できます"></div>
@@ -206,6 +226,7 @@
           <span class="title">測定していない区間を消す</span>
           <span class="grp">|値| が <input type="text" id="threshold" placeholder="自動"> 未満</span>
           <span class="grp">変化前を <input type="text" id="preCount" value="5"> 点残す</span>
+          <span class="grp">変化後を <input type="text" id="postCount" value="5"> 点残す</span>
           <button id="trimBtn" type="button">消して整える</button>
           <button id="undoBtn" type="button" disabled>元に戻す</button>
           <label><input type="checkbox" id="trimAlign" checked> 変化の始まりで揃える</label>
@@ -281,6 +302,30 @@
 
   function trialColor(t) { return PALETTE[t % PALETTE.length]; }
   function trialName(t) { return `${t + 1}回目`; }
+
+  const Y_PRESETS = {
+    acceleration: { name: "加速度", sym: "a", unit: "m/s^2" },
+    velocity: { name: "速度", sym: "v", unit: "m/s" },
+    displacement: { name: "変位", sym: "x", unit: "m" },
+    time: { name: "時間", sym: "t", unit: "s" },
+    force: { name: "力", sym: "F", unit: "N" },
+    mass: { name: "質量", sym: "m", unit: "kg" },
+    energy: { name: "エネルギー", sym: "E", unit: "J" },
+    power: { name: "仕事率", sym: "P", unit: "W" },
+    voltage: { name: "電圧", sym: "V", unit: "V" },
+    current: { name: "電流", sym: "I", unit: "A" },
+    resistance: { name: "電気抵抗", sym: "R", unit: "Ω" },
+    frequency: { name: "振動数", sym: "f", unit: "Hz" },
+    temperature: { name: "温度", sym: "T", unit: "°C" },
+  };
+
+  function applyYPreset(key) {
+    const preset = Y_PRESETS[key];
+    if (!preset) return;
+    document.getElementById("yName").value = preset.name;
+    document.getElementById("ySym").value = preset.sym;
+    document.getElementById("yUnit").value = preset.unit;
+  }
 
   // ---------- 数値フォーマット ----------
 
@@ -571,6 +616,11 @@
     return Number.isFinite(v) && v >= 0 ? Math.min(v, 50) : 0;
   }
 
+  function postSampleCount() {
+    const v = parseInt(normalizeNumberText(document.getElementById("postCount").value), 10);
+    return Number.isFinite(v) && v >= 0 ? Math.min(v, 50) : 0;
+  }
+
   function trimSmallValues() {
     const data = readData();
     const status = document.getElementById("trimStatus");
@@ -600,6 +650,7 @@
     const alsoMiddle = document.getElementById("trimMiddle").checked;
     const align = document.getElementById("trimAlign").checked;
     const pre = preSampleCount();
+    const post = postSampleCount();
     takeSnapshot();
 
     // 列ごとに，残す値だけを上から並べ直す。
@@ -619,9 +670,10 @@
       const out = [];
       const padTop = align ? pre - (first - start) : 0;
       for (let i = 0; i < padTop; i++) out.push("");
+      const end = Math.min(col.length - 1, last + post);
       for (let i = 0; i < col.length; i++) {
         const v = col[i];
-        if (i < start || i > last) { if (v !== null) cleared++; continue; }
+        if (i < start || i > end) { if (v !== null) cleared++; continue; }
         if (v === null) { out.push(""); continue; }
         // 変化の前後に残した点はそのまま。消すのは測定区間の内側だけ
         if (alsoMiddle && i > first && i < last && Math.abs(v) < th) { out.push(""); cleared++; continue; }
@@ -648,7 +700,7 @@
       ? `変化し始める点を ${pre + 1} 行目に揃えました`
       : `変化前 ${pre} 点を残して上に詰めました`;
     status.textContent =
-      `しきい値 ${fmt(th)} 未満の ${cleared} 個を消し，${alignMsg}。` +
+      `しきい値 ${fmt(th)} 未満の ${cleared} 個を消し，${alignMsg}，変化後 ${post} 点を残しました。` +
       (removed > 0 ? `（${removed} 行を削除）` : "");
     render();
   }
@@ -1033,6 +1085,10 @@
 
   document.getElementById("labelsBox").addEventListener("input", render);
   document.getElementById("labelsBox").addEventListener("change", render);
+  document.getElementById("yPreset").addEventListener("change", e => {
+    applyYPreset(e.target.value);
+    render();
+  });
   document.querySelectorAll(".optbox input").forEach(el => el.addEventListener("change", render));
 
   // ---------- 全画面表示 ----------
@@ -1061,6 +1117,7 @@
   // ---------- 初期化 ----------
 
   initTable(INITIAL_ROWS);
+  applyYPreset(document.getElementById("yPreset").value);
   updateTrialButtons();
   render();
 })();
