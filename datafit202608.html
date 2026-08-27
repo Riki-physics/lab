@@ -63,8 +63,15 @@
     outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); background: #fff;
   }
   .labelsbox .namefield input[type=text] { width: 96px; }
-  .labelsbox .dataset { flex-basis: 100%; justify-content: center; }
-  .labelsbox .dataset select { min-width: 220px; }
+  .labelsbox select {
+    font-size: 0.92em; padding: 5px 8px; border-radius: 7px;
+    border: 1px solid var(--border-soft); background: #fff; color: var(--text-main);
+  }
+  .labelsbox .axisrow {
+    flex-basis: 100%; display: flex; flex-wrap: wrap;
+    gap: 8px 16px; align-items: center; justify-content: center;
+  }
+  .labelsbox .qty select { min-width: 182px; }
   .labelsbox .sep { width: 1px; align-self: stretch; background: var(--border-soft); margin: 0 4px; }
 
   .legend { display: flex; gap: 10px; justify-content: center; margin: 14px 0 10px; font-size: 0.92em; flex-wrap: wrap; }
@@ -215,28 +222,28 @@
   </p>
 
   <div class="box labelsbox" id="labelsBox">
-    <div class="field dataset"><label for="yDataset">データセット</label>
-      <select id="yDataset">
-        <option value="motion" selected>位置・速度・加速度</option>
-        <option value="energy">仕事・エネルギー・仕事率</option>
-        <option value="electricity">電圧・電流・電気抵抗</option>
-        <option value="custom">任意入力</option>
-      </select>
+    <div class="axisrow">
+      <div class="field"><label>横軸 記号</label><input type="text" id="xSym" value="t"></div>
+      <div class="field"><label>単位</label><input type="text" id="xUnit" value="s" title="^2 → ²，_1 → ₁ のように ^ と _ で上付き・下付きを入力できます"></div>
     </div>
-    <div class="field"><label>横軸 記号</label><input type="text" id="xSym" value="t"></div>
-    <div class="field"><label>単位</label><input type="text" id="xUnit" value="s" title="^2 → ²，_1 → ₁ のように ^ と _ で上付き・下付きを入力できます"></div>
-    <div class="sep"></div>
-    <div class="field namefield"><label>縦軸1 名</label><input type="text" id="s1Name" value="縦軸1"></div>
-    <div class="field"><label>記号</label><input type="text" id="s1Sym" value="x"></div>
-    <div class="field"><label>単位</label><input type="text" id="s1Unit" value="m" title="^2 → ²，_1 → ₁ のように ^ と _ で上付き・下付きを入力できます"></div>
-    <div class="sep"></div>
-    <div class="field namefield"><label>縦軸2 名</label><input type="text" id="s2Name" value="縦軸2"></div>
-    <div class="field"><label>記号</label><input type="text" id="s2Sym" value="v"></div>
-    <div class="field"><label>単位</label><input type="text" id="s2Unit" value="m/s" title="^2 → ²，_1 → ₁ のように ^ と _ で上付き・下付きを入力できます"></div>
-    <div class="sep"></div>
-    <div class="field namefield"><label>縦軸3 名</label><input type="text" id="s3Name" value="縦軸3"></div>
-    <div class="field"><label>記号</label><input type="text" id="s3Sym" value="a"></div>
-    <div class="field"><label>単位</label><input type="text" id="s3Unit" value="m/s^2" title="^2 → ²，_1 → ₁ のように ^ と _ で上付き・下付きを入力できます"></div>
+    <div class="axisrow">
+      <div class="field qty"><label for="s1Preset">縦軸1</label><select id="s1Preset"></select></div>
+      <div class="field namefield"><label>名</label><input type="text" id="s1Name" value="位置"></div>
+      <div class="field"><label>記号</label><input type="text" id="s1Sym" value="x"></div>
+      <div class="field"><label>単位</label><input type="text" id="s1Unit" value="m" title="^2 → ²，_1 → ₁ のように ^ と _ で上付き・下付きを入力できます"></div>
+    </div>
+    <div class="axisrow">
+      <div class="field qty"><label for="s2Preset">縦軸2</label><select id="s2Preset"></select></div>
+      <div class="field namefield"><label>名</label><input type="text" id="s2Name" value="速度"></div>
+      <div class="field"><label>記号</label><input type="text" id="s2Sym" value="v"></div>
+      <div class="field"><label>単位</label><input type="text" id="s2Unit" value="m/s" title="^2 → ²，_1 → ₁ のように ^ と _ で上付き・下付きを入力できます"></div>
+    </div>
+    <div class="axisrow">
+      <div class="field qty"><label for="s3Preset">縦軸3</label><select id="s3Preset"></select></div>
+      <div class="field namefield"><label>名</label><input type="text" id="s3Name" value="加速度"></div>
+      <div class="field"><label>記号</label><input type="text" id="s3Sym" value="a"></div>
+      <div class="field"><label>単位</label><input type="text" id="s3Unit" value="m/s^2" title="^2 → ²，_1 → ₁ のように ^ と _ で上付き・下付きを入力できます"></div>
+    </div>
   </div>
   <p class="lead" style="max-width:1160px; margin-top:-4px; font-size:0.82em;">
     縦軸ごとに単位が異なる場合（例：位置 <span class="sym">x</span> [m]・速度 <span class="sym">v</span> [m/s]・加速度 <span class="sym">a</span> [m/s²]）は，重ね合わせず自動でグラフを分けて表示します。単位が同じ縦軸同士は1つのグラフに重ねて表示します。単位欄は <b>^2</b> のように入力すると <b>²</b> に変換されます（下付きは <b>_</b>）。
@@ -369,33 +376,105 @@
   const SERIES = [1, 2, 3];
   function seriesColor(k) { return COLORS[`series${k}`]; }
 
-  const Y_DATASETS = {
-    motion: [
-      { name: "位置", sym: "x", unit: "m" },
-      { name: "速度", sym: "v", unit: "m/s" },
-      { name: "加速度", sym: "a", unit: "m/s^2" },
-    ],
-    energy: [
-      { name: "仕事", sym: "W", unit: "J" },
-      { name: "エネルギー", sym: "E", unit: "J" },
-      { name: "仕事率", sym: "P", unit: "W" },
-    ],
-    electricity: [
-      { name: "電圧", sym: "V", unit: "V" },
-      { name: "電流", sym: "I", unit: "A" },
-      { name: "電気抵抗", sym: "R", unit: "Ω" },
-    ],
-  };
+  // ---------- 縦軸に選べる物理量 ----------
+  // 3つの縦軸それぞれで独立に選ぶ。key はサンプルデータからも参照する。
 
-  function applyYDataset(key) {
-    const dataset = Y_DATASETS[key];
-    if (!dataset) return;
-    dataset.forEach((item, index) => {
-      const series = index + 1;
-      document.getElementById(`s${series}Name`).value = item.name;
-      document.getElementById(`s${series}Sym`).value = item.sym;
-      document.getElementById(`s${series}Unit`).value = item.unit;
+  const Y_QUANTITY_GROUPS = [
+    { label: "力学", items: [
+      { key: "time",        name: "時間",           sym: "t", unit: "s" },
+      { key: "position",    name: "位置",           sym: "x", unit: "m" },
+      { key: "length",      name: "長さ",           sym: "L", unit: "m" },
+      { key: "velocity",    name: "速度",           sym: "v", unit: "m/s" },
+      { key: "velocity2",   name: "速度の2乗",      sym: "v²", unit: "m^2/s^2" },
+      { key: "acceleration",name: "加速度",         sym: "a", unit: "m/s^2" },
+      { key: "mass",        name: "質量",           sym: "m", unit: "kg" },
+      { key: "force",       name: "力",             sym: "F", unit: "N" },
+      { key: "momentum",    name: "運動量",         sym: "p", unit: "kg·m/s" },
+      { key: "impulse",     name: "力積",           sym: "I", unit: "N·s" },
+      { key: "work",        name: "仕事",           sym: "W", unit: "J" },
+      { key: "energy",      name: "エネルギー",     sym: "E", unit: "J" },
+      { key: "kinetic",     name: "運動エネルギー", sym: "K", unit: "J" },
+      { key: "potential",   name: "位置エネルギー", sym: "U", unit: "J" },
+      { key: "power",       name: "仕事率",         sym: "P", unit: "W" },
+      { key: "springk",     name: "ばね定数",       sym: "k", unit: "N/m" },
+      { key: "period",      name: "周期",           sym: "T", unit: "s" },
+      { key: "frequency",   name: "振動数",         sym: "f", unit: "Hz" },
+      { key: "angle",       name: "角度",           sym: "θ", unit: "rad" },
+      { key: "omega",       name: "角速度",         sym: "ω", unit: "rad/s" },
+    ]},
+    { label: "熱", items: [
+      { key: "temperature", name: "温度",           sym: "T", unit: "°C" },
+      { key: "abstemp",     name: "絶対温度",       sym: "T", unit: "K" },
+      { key: "heat",        name: "熱量",           sym: "Q", unit: "J" },
+      { key: "specificheat",name: "比熱",           sym: "c", unit: "J/(g·K)" },
+      { key: "pressure",    name: "圧力",           sym: "p", unit: "Pa" },
+      { key: "volume",      name: "体積",           sym: "V", unit: "m^3" },
+    ]},
+    { label: "波動", items: [
+      { key: "wavelength",  name: "波長",           sym: "λ", unit: "m" },
+      { key: "amplitude",   name: "振幅",           sym: "A", unit: "m" },
+      { key: "wavespeed",   name: "波の速さ",       sym: "v", unit: "m/s" },
+      { key: "refractive",  name: "屈折率",         sym: "n", unit: "" },
+      { key: "soundlevel",  name: "音の強さ",       sym: "I", unit: "W/m^2" },
+    ]},
+    { label: "電磁気", items: [
+      { key: "voltage",     name: "電圧",           sym: "V", unit: "V" },
+      { key: "current",     name: "電流",           sym: "I", unit: "A" },
+      { key: "resistance",  name: "電気抵抗",       sym: "R", unit: "Ω" },
+      { key: "charge",      name: "電気量",         sym: "Q", unit: "C" },
+      { key: "capacitance", name: "電気容量",       sym: "C", unit: "F" },
+      { key: "efield",      name: "電場",           sym: "E", unit: "N/C" },
+      { key: "epotential",  name: "電位",           sym: "V", unit: "V" },
+      { key: "bfield",      name: "磁束密度",       sym: "B", unit: "T" },
+      { key: "magflux",     name: "磁束",           sym: "Φ", unit: "Wb" },
+      { key: "emf",         name: "誘導起電力",     sym: "V", unit: "V" },
+      { key: "elecpower",   name: "消費電力",       sym: "P", unit: "W" },
+    ]},
+    { label: "原子", items: [
+      { key: "photonenergy",name: "光子のエネルギー", sym: "E", unit: "J" },
+      { key: "lightfreq",   name: "光の振動数",     sym: "ν", unit: "Hz" },
+      { key: "stopvoltage", name: "阻止電圧",       sym: "V", unit: "V" },
+      { key: "nuclei",      name: "原子核の数",     sym: "N", unit: "" },
+    ]},
+  ];
+
+  const Y_QUANTITIES = new Map();
+  Y_QUANTITY_GROUPS.forEach(g => g.items.forEach(q => Y_QUANTITIES.set(q.key, q)));
+
+  const DEFAULT_QUANTITY = { 1: "position", 2: "velocity", 3: "acceleration" };
+
+  function quantityLabel(q) {
+    return `${q.name}　${q.sym}${q.unit ? ` [${formatUnitDisplay(q.unit)}]` : ""}`;
+  }
+
+  function populateQuantitySelect(sel) {
+    const custom = document.createElement("option");
+    custom.value = "custom";
+    custom.textContent = "任意入力";
+    sel.appendChild(custom);
+    Y_QUANTITY_GROUPS.forEach(g => {
+      const og = document.createElement("optgroup");
+      og.label = g.label;
+      g.items.forEach(q => {
+        const o = document.createElement("option");
+        o.value = q.key;
+        o.textContent = quantityLabel(q);
+        og.appendChild(o);
+      });
+      sel.appendChild(og);
     });
+  }
+
+  function setSeriesFields(k, name, sym, unit) {
+    document.getElementById(`s${k}Name`).value = name;
+    document.getElementById(`s${k}Sym`).value = sym;
+    document.getElementById(`s${k}Unit`).value = unit;
+  }
+
+  function applyQuantity(k, key) {
+    const q = Y_QUANTITIES.get(key);
+    if (!q) return;
+    setSeriesFields(k, q.name, q.sym, q.unit);
   }
 
   const fitState = {
@@ -842,7 +921,7 @@
 
   function findHandleAt(px, py, inst) {
     if (!inst.lastGeom) return null;
-    const hitR = 14;
+    const hitR = 18;
     let best = null, bestDist = Infinity;
     inst.seriesKeys.forEach(k => {
       if (!fitState[k].type) return;
@@ -858,7 +937,7 @@
   // 全画面表示中に，実データ点（ドラッグ用ハンドルとは別）をタップしたか判定する
   function findMarkerAt(px, py, inst, ptsAll) {
     if (!inst.lastGeom) return null;
-    const hitR = 16;
+    const hitR = 20;
     let best = null, bestDist = Infinity;
     inst.seriesKeys.forEach(k => {
       ptsAll[k].forEach(pt => {
@@ -1222,7 +1301,7 @@
       const def = FIT_DEFS[type];
       const params = def.solveExact(fitState[k].handles);
       ctx.strokeStyle = seriesColor(k);
-      ctx.lineWidth = 2;
+      ctx.lineWidth = isFullscreen ? 4.5 : 3.2;
       ctx.lineJoin = "round";
       ctx.lineCap = "round";
       ctx.beginPath();
@@ -1247,15 +1326,15 @@
         const px = mapX(x), py = mapY(y);
         if (isSelected) {
           ctx.beginPath();
-          ctx.arc(px, py, 16, 0, Math.PI * 2);
+          ctx.arc(px, py, isFullscreen ? 22 : 18, 0, Math.PI * 2);
           ctx.fillStyle = color + "33";
           ctx.fill();
         }
         ctx.beginPath();
-        ctx.arc(px, py, isSelected ? 10 : 5, 0, Math.PI * 2);
+        ctx.arc(px, py, isSelected ? 13 : (isFullscreen ? 8.5 : 7), 0, Math.PI * 2);
         ctx.fillStyle = color;
         ctx.fill();
-        ctx.lineWidth = isSelected ? 3 : 2;
+        ctx.lineWidth = isSelected ? 3.5 : 2.5;
         ctx.strokeStyle = COLORS.surface;
         ctx.stroke();
       });
@@ -1282,10 +1361,10 @@
         }
 
         ctx.beginPath();
-        ctx.arc(px, py, isDragging ? 9 : 7, 0, Math.PI * 2);
+        ctx.arc(px, py, isDragging ? 12.5 : 10, 0, Math.PI * 2);
         ctx.fillStyle = color;
         ctx.fill();
-        ctx.lineWidth = 3;
+        ctx.lineWidth = 3.5;
         ctx.strokeStyle = COLORS.surface;
         ctx.stroke();
 
@@ -1908,9 +1987,17 @@
   });
 
   document.getElementById("labelsBox").addEventListener("input", render);
-  document.getElementById("yDataset").addEventListener("change", e => {
-    applyYDataset(e.target.value);
-    render();
+  SERIES.forEach(k => {
+    document.getElementById(`s${k}Preset`).addEventListener("change", e => {
+      applyQuantity(k, e.target.value);
+      render();
+    });
+    // 名前・記号・単位を手で書き換えたら，プルダウンは「任意入力」に戻す
+    [`s${k}Name`, `s${k}Sym`, `s${k}Unit`].forEach(id => {
+      document.getElementById(id).addEventListener("input", () => {
+        document.getElementById(`s${k}Preset`).value = "custom";
+      });
+    });
   });
 
   // ---------- 全画面表示 ----------
@@ -1944,7 +2031,12 @@
 
   SERIES.forEach(k => populateTypeSelect(document.getElementById(`fit${k}type`)));
   initTable(2000);
-  applyYDataset(document.getElementById("yDataset").value);
+  SERIES.forEach(k => {
+    const sel = document.getElementById(`s${k}Preset`);
+    populateQuantitySelect(sel);
+    sel.value = DEFAULT_QUANTITY[k];
+    applyQuantity(k, sel.value);
+  });
 
   window.addEventListener("mouseup", onPointerUp);
   window.addEventListener("touchend", onPointerUp);

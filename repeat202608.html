@@ -868,7 +868,7 @@
           if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
         });
         ctx.strokeStyle = COLORS.mean;
-        ctx.lineWidth = isFullscreen ? 3 : 2.2;
+        ctx.lineWidth = isFullscreen ? 5 : 3.6;
         ctx.setLineDash([]);
         ctx.stroke();
       });
@@ -877,8 +877,8 @@
     // 各試行の折れ線とデータ点
     const useLine = document.getElementById("optLine").checked;
     const useMarker = document.getElementById("optMarker").checked;
-    const lw = isFullscreen ? 2.4 : 1.7;
-    const mr = isFullscreen ? 3.4 : 2.6;
+    const lw = isFullscreen ? 4 : 2.9;
+    const mr = isFullscreen ? 5.4 : 4.2;
 
     visible.forEach(t => {
       const col = data.columns[t];
