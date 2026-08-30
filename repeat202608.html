@@ -313,7 +313,23 @@
   let undoSnapshot = null;
   let isFullscreen = false;
 
-  function trialColor(t) { return PALETTE[t % PALETTE.length]; }
+  // 試行ごとに割り当てた色（PALETTE のインデックス）。
+  // 途中の試行を消しても残りの試行の色が変わらないよう，位置ではなくこの割り当てで色を決める。
+  let colorSlots = [];
+  function ensureColorSlots() {
+    while (colorSlots.length < trialCount) {
+      const used = new Set(colorSlots);
+      let idx = 0;
+      while (used.has(idx)) idx++;
+      colorSlots.push(idx);
+    }
+    if (colorSlots.length > trialCount) colorSlots.length = trialCount;
+  }
+
+  function trialColor(t) {
+    const slot = colorSlots[t];
+    return PALETTE[(slot == null ? t : slot) % PALETTE.length];
+  }
   function trialName(t) { return `${t + 1}回目`; }
 
   const Y_PRESETS = {
@@ -537,6 +553,7 @@
       Array.from(tr.querySelectorAll(".cell")).map(c => c.value));
     trialCount = n;
     hidden.forEach(t => { if (t >= n) hidden.delete(t); });
+    ensureColorSlots();
     buildHead();
     Array.from(tbody().rows).forEach((tr, r) => {
       tr.innerHTML = rowHtml(r + 1);
@@ -561,6 +578,7 @@
     takeSnapshot(false);
     const label = trialName(target);
     trialCount -= 1;
+    colorSlots.splice(target, 1);   // 消した試行の色だけ取り除き，残りの色は動かさない
     const shifted = new Set();
     hidden.forEach(t => {
       if (t === target) return;
@@ -638,6 +656,7 @@
       rows: Array.from(tbody().rows).map(tr =>
         Array.from(tr.querySelectorAll(".cell")).map(c => c.value)),
       trialCount,
+      colorSlots: colorSlots.slice(),
     };
     document.getElementById("undoBtn").disabled = false;
   }
@@ -649,6 +668,8 @@
 
   function applySnapshot(snap) {
     trialCount = snap.trialCount;
+    colorSlots = snap.colorSlots ? snap.colorSlots.slice() : [];
+    ensureColorSlots();
     buildHead();
     const frag = document.createDocumentFragment();
     snap.rows.forEach((vals, r) => {
@@ -1245,6 +1266,7 @@
 
   // ---------- 初期化 ----------
 
+  ensureColorSlots();
   initTable(INITIAL_ROWS);
   applyYPreset(document.getElementById("yPreset").value);
   updateTrialButtons();
