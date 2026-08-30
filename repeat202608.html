@@ -144,6 +144,11 @@
   }
   #dataTable td .cell:focus { outline: 2px solid var(--accent); outline-offset: -2px; background: var(--accent-soft); }
   #dataTable th .chip { display: inline-block; width: 9px; height: 9px; border-radius: 2px; margin-right: 5px; vertical-align: baseline; }
+  #dataTable th .del-col {
+    border: none; background: transparent; color: #aeb2be; cursor: pointer;
+    font-size: 1em; line-height: 1; padding: 0; margin-left: 4px; vertical-align: baseline;
+  }
+  #dataTable th .del-col:hover { color: #d64545; }
 
   .tablebtns { display: flex; gap: 8px; justify-content: center; margin-top: 12px; flex-wrap: wrap; }
   #clearBtn { border-color: #d64545; color: #b83232; }
@@ -248,10 +253,11 @@
 
         <div class="tablebtns">
           <button id="addTrialBtn" type="button">＋ 試行を追加</button>
-          <button id="delTrialBtn" type="button">－ 試行を削除</button>
+          <button id="delTrialBtn" type="button">－ 末尾の試行を削除</button>
           <button id="addRowBtn" type="button">＋ 行を追加</button>
           <button id="clearBtn" type="button">全クリア</button>
         </div>
+        <p class="hint">失敗した試行だけを消したいときは，表の見出し（「3回目」など）の <b>×</b> を押すと，<b>その試行の列だけ</b>を消して右の試行を繰り上げます。「元に戻す」で戻せます。</p>
       </div>
     </div>
 
@@ -478,14 +484,18 @@
   function buildHead() {
     const cg = document.getElementById("colGroup");
     const head = document.getElementById("headRow");
+    const cw = 74;
     cg.innerHTML = `<col style="width:38px">` +
-      Array.from({ length: trialCount }, () => `<col style="width:68px">`).join("") +
+      Array.from({ length: trialCount }, () => `<col style="width:${cw}px">`).join("") +
       `<col style="width:30px">`;
+    const canDel = trialCount > MIN_TRIALS;
     head.innerHTML = `<th class="rownum">#</th>` +
       Array.from({ length: trialCount }, (_, t) =>
-        `<th><span class="chip" style="background:${trialColor(t)}"></span>${trialName(t)}</th>`).join("") +
+        `<th><span class="chip" style="background:${trialColor(t)}"></span>${trialName(t)}` +
+        (canDel ? `<button type="button" class="del-col" data-col="${t}" title="${trialName(t)}だけを消す">×</button>` : ``) +
+        `</th>`).join("") +
       `<th></th>`;
-    document.getElementById("dataTable").style.minWidth = (38 + 68 * trialCount + 30) + "px";
+    document.getElementById("dataTable").style.minWidth = (38 + cw * trialCount + 30) + "px";
   }
 
   function rowHtml(n) {
@@ -539,6 +549,37 @@
   function updateTrialButtons() {
     document.getElementById("addTrialBtn").disabled = trialCount >= MAX_TRIALS;
     document.getElementById("delTrialBtn").disabled = trialCount <= MIN_TRIALS;
+  }
+
+  // 特定の試行（列）だけを消し，右の試行を繰り上げて番号をつけ直す
+  function removeTrial(target) {
+    if (!(target >= 0 && target < trialCount) || trialCount <= MIN_TRIALS) return;
+    const keep = Array.from(tbody().rows).map(tr =>
+      Array.from(tr.querySelectorAll(".cell")).map(c => c.value));
+    const hasData = keep.some(r => (r[target] || "").trim() !== "");
+    if (hasData && !confirm(`${trialName(target)}のデータを消します。よろしいですか？`)) return;
+    takeSnapshot(false);
+    const label = trialName(target);
+    trialCount -= 1;
+    const shifted = new Set();
+    hidden.forEach(t => {
+      if (t === target) return;
+      shifted.add(t > target ? t - 1 : t);
+    });
+    hidden.clear();
+    shifted.forEach(t => hidden.add(t));
+    buildHead();
+    Array.from(tbody().rows).forEach((tr, r) => {
+      tr.innerHTML = rowHtml(r + 1);
+      const vals = keep[r].filter((_, t) => t !== target);
+      tr.querySelectorAll(".cell").forEach((c, t) => { c.value = vals[t] || ""; });
+    });
+    updateTrialButtons();
+    document.getElementById("trimStatus").textContent =
+      (target < trialCount
+        ? `${label}を消し，右の試行を繰り上げました。`
+        : `${label}を消しました。`) + "「元に戻す」で戻せます。";
+    render();
   }
 
   // ---------- データの読み取り ----------
@@ -1061,6 +1102,12 @@
       renumberRows();
       render();
     }
+  });
+
+  // 見出しの × で，その試行の列だけを消す
+  document.getElementById("headRow").addEventListener("click", e => {
+    const btn = e.target.closest(".del-col");
+    if (btn) removeTrial(parseInt(btn.dataset.col, 10));
   });
 
   // 矢印キーでセル移動（スプレッドシートと同じ操作感）
