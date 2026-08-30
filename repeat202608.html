@@ -163,6 +163,7 @@
   .trimbar label { display: inline-flex; align-items: center; gap: 5px; cursor: pointer; }
   .trimbar input[type=checkbox] { width: 14px; height: 14px; accent-color: #b4761a; cursor: pointer; }
   .trimbar button { padding: 5px 12px; font-size: 1em; }
+  .trimbar .stepbtn { padding: 4px 10px; font-weight: 700; font-size: 1.05em; line-height: 1; }
   #trimBtn { border-color: #b4761a; color: #b4761a; font-weight: 600; }
   #trimBtn:hover:not(:disabled) { background: #fdf0d9; border-color: #b4761a; color: #8f5d13; }
   .hint { font-size: 0.78em; color: var(--text-sub); text-align: center; margin: 10px 4px 0; line-height: 1.6; }
@@ -175,7 +176,7 @@
   <h1>繰り返し測定の比較ツール <span class="sub">REPEATED MEASUREMENTS</span></h1>
   <p class="lead">
     1. 同じ測定を何回か繰り返したデータを，1回ぶんずつ列に貼り付けます（Excel・Numbers・センサーアプリからそのままコピーできます）。<br>
-    2. 横軸はサンプル番号です。サンプリング間隔 Δ<span class="sym">t</span> を入れると，横軸を時刻［s］に切り替えられます。<br>
+    2. サンプリングレート［Hz］か サンプリング間隔 Δ<span class="sym">t</span>［s］を入れると，横軸が自動で時刻［s］に変換されます（2つは連動。どちらも空欄にするとサンプル番号に戻ります）。<br>
     3. 全部の試行が1つのグラフに重ねて表示されるので，測定のばらつき（再現性）がひと目で分かります。
   </p>
 
@@ -202,6 +203,7 @@
     <div class="field"><label>記号</label><input type="text" id="ySym" value="a"></div>
     <div class="field"><label>単位</label><input type="text" id="yUnit" value="m/s^2" title="^2 → ²，_1 → ₁ のように ^ と _ で上付き・下付きを入力できます"></div>
     <div class="sep"></div>
+    <div class="field"><label>サンプリングレート</label><input type="text" id="rate" value="100"><span class="suffix">Hz</span></div>
     <div class="field"><label>サンプリング間隔 Δ<span class="sym">t</span></label><input type="text" id="dt" value="0.01"><span class="suffix">s</span></div>
     <div class="field"><label>横軸</label>
       <select id="xMode">
@@ -224,7 +226,11 @@
 
         <div class="trimbar">
           <span class="title">測定していない区間を消す</span>
-          <span class="grp">|値| が <input type="text" id="threshold" placeholder="自動"> 未満</span>
+          <span class="grp">|値| が
+            <button id="thDown" class="stepbtn" type="button" title="しきい値を下げてやり直す">−</button>
+            <input type="text" id="threshold" placeholder="自動">
+            <button id="thUp" class="stepbtn" type="button" title="しきい値を上げてやり直す">＋</button>
+            未満</span>
           <span class="grp">変化前を <input type="text" id="preCount" value="5"> 点残す</span>
           <span class="grp">変化後を <input type="text" id="postCount" value="5"> 点残す</span>
           <button id="trimBtn" type="button">消して整える</button>
@@ -235,7 +241,8 @@
         <p class="hint">
           センサーは測定を始める前後にも 0 や 0.01 のような小さい値を記録し続けます。このボタンは，各試行の<b>測定が始まる前と終わった後</b>にある小さい値を消し，残ったデータを<b>1行目まで詰めて上に揃えます</b>。<br>
           試行ごとに測定を始めたタイミングがずれていても，<b>値が変化し始めた点が同じ行に揃う</b>ので，グラフがきれいに重なります。変化の直前を数点残すので，どこから変化したのかが見えます。<br>
-          途中で 0 をまたぐ測定（振動など）を壊さないよう，既定では途中の値は残します。しきい値を空欄にすると最大値の 2% を自動で使います。
+          途中で 0 をまたぐ測定（振動など）を壊さないよう，既定では途中の値は残します。しきい値を空欄にすると最大値の 2% を自動で使います。<br>
+          消し残しがあるときは <b>＋</b> を押すと，しきい値を 1→2→5→10… のきざみで上げ，<b>いったん元に戻してからその値でやり直します</b>（<b>−</b> で下げる）。手入力は不要です。うまくいかなければ「元に戻す」で <b>いちばん最初の状態</b>に戻せます。
         </p>
         <p class="status" id="trimStatus"></p>
 
@@ -582,7 +589,10 @@
     return autoThreshold(data);
   }
 
-  function takeSnapshot() {
+  // force=true で必ず取り直す。既定では最初の1枚を保持し，
+  // ＋／− で何度やり直しても「いちばん最初の状態」に戻せるようにする。
+  function takeSnapshot(force) {
+    if (undoSnapshot && !force) return;
     undoSnapshot = {
       rows: Array.from(tbody().rows).map(tr =>
         Array.from(tr.querySelectorAll(".cell")).map(c => c.value)),
@@ -591,9 +601,12 @@
     document.getElementById("undoBtn").disabled = false;
   }
 
-  function restoreSnapshot() {
-    if (!undoSnapshot) return;
-    const snap = undoSnapshot;
+  function invalidateSnapshot() {
+    undoSnapshot = null;
+    document.getElementById("undoBtn").disabled = true;
+  }
+
+  function applySnapshot(snap) {
     trialCount = snap.trialCount;
     buildHead();
     const frag = document.createDocumentFragment();
@@ -604,11 +617,49 @@
     });
     tbody().innerHTML = "";
     tbody().appendChild(frag);
+    updateTrialButtons();
+  }
+
+  function restoreSnapshot() {
+    if (!undoSnapshot) return;
+    applySnapshot(undoSnapshot);
     undoSnapshot = null;
     document.getElementById("undoBtn").disabled = true;
     document.getElementById("trimStatus").textContent = "元に戻しました。";
-    updateTrialButtons();
     render();
+  }
+
+  // ＋／− でしきい値を 1→2→5→10… のきざみで動かす
+  function stepThreshold(cur, dir) {
+    if (!(cur > 0)) cur = 1;
+    const base = Math.floor(Math.log10(cur)) - 1;
+    const mant = [1, 2, 5];
+    const ladder = [];
+    for (let k = base; k <= base + 5; k++)
+      for (const m of mant) ladder.push(parseFloat((m * Math.pow(10, k)).toPrecision(2)));
+    let bi = 0, bd = Infinity;
+    ladder.forEach((v, i) => {
+      const d = Math.abs(Math.log(v / cur));
+      if (d < bd) { bd = d; bi = i; }
+    });
+    const ni = Math.min(ladder.length - 1, Math.max(0, bi + dir));
+    return ladder[ni];
+  }
+
+  // dir = +1 で上げる / -1 で下げる。直前に「消して整える」をした状態なら，
+  // いったん最初の状態に戻してから，新しいしきい値で自動でやり直す。
+  function adjustThreshold(dir) {
+    const data = readData();
+    const field = document.getElementById("threshold");
+    let cur = parseFloat(normalizeNumberText(field.value));
+    if (!(cur > 0)) cur = data.usedRows ? autoThreshold(data) : 1;
+    field.value = fmt(stepThreshold(cur, dir));
+    if (undoSnapshot) {
+      applySnapshot(undoSnapshot);
+      trimSmallValues();
+    } else {
+      render();
+    }
   }
 
   function preSampleCount() {
@@ -651,7 +702,7 @@
     const align = document.getElementById("trimAlign").checked;
     const pre = preSampleCount();
     const post = postSampleCount();
-    takeSnapshot();
+    takeSnapshot(false);
 
     // 列ごとに，残す値だけを上から並べ直す。
     // 揃えるときは，変化し始めた点がどの試行でも同じ行（pre 行ぶん下）に来るよう先頭を空ける。
@@ -989,17 +1040,19 @@
   document.getElementById("delTrialBtn").addEventListener("click", () => setTrialCount(trialCount - 1));
   document.getElementById("trimBtn").addEventListener("click", trimSmallValues);
   document.getElementById("undoBtn").addEventListener("click", restoreSnapshot);
+  document.getElementById("thUp").addEventListener("click", () => adjustThreshold(1));
+  document.getElementById("thDown").addEventListener("click", () => adjustThreshold(-1));
 
   document.getElementById("clearBtn").addEventListener("click", () => {
     if (!confirm("入力したデータをすべて消去します。よろしいですか？")) return;
-    takeSnapshot();
+    takeSnapshot(true);
     allCells().forEach(c => (c.value = ""));
     document.getElementById("trimStatus").textContent = "";
     render();
   });
 
   tbody().addEventListener("input", e => {
-    if (e.target.matches(".cell")) render();
+    if (e.target.matches(".cell")) { invalidateSnapshot(); render(); }
   });
 
   tbody().addEventListener("click", e => {
@@ -1079,9 +1132,38 @@
         if (target) target.value = val;
       });
     });
+    invalidateSnapshot();
     document.getElementById("trimStatus").textContent = "";
     render();
   });
+
+  // サンプリングレート［Hz］と サンプリング間隔 Δt［s］は Δt = 1 / レート で連動。
+  // どちらかに有効な値が入っていれば横軸を自動で時刻に，空欄・無効ならサンプル番号にする。
+  const dtField = document.getElementById("dt");
+  const rateField = document.getElementById("rate");
+
+  function numOf(el) { return parseFloat(normalizeNumberText(el.value)); }
+  function trimNum(x) {
+    let s = x.toPrecision(6);
+    if (s.indexOf("e") < 0 && s.indexOf(".") >= 0) s = s.replace(/0+$/, "").replace(/\.$/, "");
+    return s;
+  }
+  function syncXModeToDt() {
+    const dt = numOf(dtField);
+    document.getElementById("xMode").value = (Number.isFinite(dt) && dt > 0) ? "time" : "index";
+  }
+
+  rateField.addEventListener("input", () => {
+    const r = numOf(rateField);
+    dtField.value = (Number.isFinite(r) && r > 0) ? trimNum(1 / r) : "";
+    syncXModeToDt();
+  });
+  dtField.addEventListener("input", () => {
+    const d = numOf(dtField);
+    rateField.value = (Number.isFinite(d) && d > 0) ? trimNum(1 / d) : "";
+    syncXModeToDt();
+  });
+  syncXModeToDt();
 
   document.getElementById("labelsBox").addEventListener("input", render);
   document.getElementById("labelsBox").addEventListener("change", render);
