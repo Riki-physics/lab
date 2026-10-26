@@ -1,0 +1,906 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>生徒指名システム</title>
+<style>
+  :root {
+    --bg: #f4f6fb;
+    --surface: #ffffff;
+    --ink: #0f172a;
+    --ink-strong: #172554;
+    --text-muted: #475569;
+    --line: #e2e8f0;
+    --accent: #4f46e5;
+    --accent-2: #0ea5e9;
+    --accent-soft: #eef2ff;
+    --accent-ink: #3730a3;
+    --shadow: 0 1px 2px rgba(15, 23, 42, 0.04), 0 12px 32px rgba(15, 23, 42, 0.08);
+  }
+
+  * {
+    box-sizing: border-box;
+  }
+
+  html, body {
+    height: 100%;
+  }
+
+  body {
+    font-family: "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Noto Sans JP", "Yu Gothic UI", "Meiryo", system-ui, sans-serif;
+    font-feature-settings: "palt";
+    margin: 0;
+    color: var(--ink);
+    background:
+      radial-gradient(1200px 600px at 0% 0%, rgba(79, 70, 229, 0.07), transparent 60%),
+      radial-gradient(1000px 500px at 100% 100%, rgba(14, 165, 233, 0.08), transparent 60%),
+      var(--bg);
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    height: 100dvh;
+    overflow: hidden;
+  }
+
+  [hidden] {
+    display: none !important;
+  }
+
+  button {
+    font-family: inherit;
+  }
+
+  /* 上部バー（タイトル・タブ・全画面） */
+  .topbar {
+    flex: none;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 8px 16px;
+    background: rgba(255, 255, 255, 0.75);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border-bottom: 1px solid var(--line);
+  }
+
+  .topbar h1 {
+    margin: 0;
+    font-size: 1rem;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    white-space: nowrap;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .topbar h1::before {
+    content: "";
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--accent), var(--accent-2));
+    box-shadow: 0 0 0 4px rgba(79, 70, 229, 0.12);
+  }
+
+  .tabs {
+    display: inline-flex;
+    gap: 2px;
+    padding: 3px;
+    border-radius: 999px;
+    background: #eef1f6;
+  }
+
+  .tab-btn {
+    padding: 6px 20px;
+    border-radius: 999px;
+    border: none;
+    background: transparent;
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: background 0.2s ease, color 0.2s ease;
+  }
+
+  .tab-btn[aria-selected="true"] {
+    background: var(--surface);
+    color: var(--ink);
+    box-shadow: 0 1px 3px rgba(15, 23, 42, 0.12);
+  }
+
+  .topbar .spacer {
+    flex: 1;
+  }
+
+  .mode-label {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--accent-ink);
+    background: var(--accent-soft);
+    padding: 4px 12px;
+    border-radius: 999px;
+    white-space: nowrap;
+  }
+
+  .small-btn {
+    padding: 6px 14px;
+    font-size: 0.9rem;
+    background: var(--surface);
+    border-radius: 999px;
+    border: 1px solid var(--line);
+    color: var(--ink);
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background 0.15s ease, border-color 0.15s ease;
+  }
+
+  .small-btn:hover {
+    background: #f8fafc;
+    border-color: #cbd5e1;
+  }
+
+  .quick-count {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--accent-ink);
+    background: var(--accent-soft);
+    padding: 3px 6px 3px 12px;
+    border-radius: 999px;
+    white-space: nowrap;
+  }
+
+  input[type="number"] {
+    font-family: inherit;
+    font-weight: 700;
+    color: var(--ink);
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    text-align: center;
+    outline: none;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  }
+
+  input[type="number"]:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 4px rgba(79, 70, 229, 0.12);
+  }
+
+  .quick-count input {
+    width: 4.2em;
+    padding: 3px 6px;
+    font-size: 1rem;
+  }
+
+  .count-card {
+    flex: none;
+  }
+
+  .count-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 1.2rem;
+    font-weight: 700;
+  }
+
+  .count-row input {
+    width: 5em;
+    padding: 8px 10px;
+    font-size: 1.6rem;
+  }
+
+  /* 指名タブ：画面いっぱいに使う */
+  #pickTab {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 14px 16px 14px;
+  }
+
+  .big-winner-box {
+    position: relative;
+    flex: 1;
+    min-height: 0;
+    border-radius: 28px;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    box-shadow: var(--shadow);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    padding: 3vmin 16px;
+    text-align: center;
+    overflow: hidden;
+  }
+
+  .big-winner-box::before {
+    content: "";
+    position: absolute;
+    inset: 0 0 auto 0;
+    height: 6px;
+    background: linear-gradient(90deg, var(--accent), var(--accent-2));
+  }
+
+  .big-winner-box::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(60% 50% at 50% 45%, rgba(79, 70, 229, 0.06), transparent 70%);
+    pointer-events: none;
+  }
+
+  .big-winner-box > * {
+    position: relative;
+  }
+
+  .big-winner-box.show {
+    animation: popWinner 0.5s cubic-bezier(0.2, 0.9, 0.3, 1.2);
+  }
+
+  .big-winner-label {
+    font-size: clamp(0.8rem, 1.8vmin, 1.3rem);
+    color: var(--accent);
+    letter-spacing: 0.4em;
+    margin-bottom: 1.5vmin;
+    font-weight: 700;
+  }
+
+  .big-winner-name {
+    font-size: clamp(3rem, 18vmin, 20rem);
+    font-weight: 800;
+    line-height: 1.08;
+    letter-spacing: 0.02em;
+    color: var(--ink-strong);
+    word-break: break-word;
+  }
+
+  .big-winner-direction {
+    margin-top: 2.5vmin;
+    padding: 0.6vmin 4vmin;
+    font-size: clamp(1.4rem, 6.5vmin, 6.5rem);
+    font-weight: 800;
+    line-height: 1.3;
+    color: var(--accent-ink);
+    background: var(--accent-soft);
+    border-radius: 999px;
+    word-break: break-word;
+  }
+
+  .big-winner-sub {
+    margin-top: 2vmin;
+    font-size: clamp(0.9rem, 2.2vmin, 1.6rem);
+    color: var(--text-muted);
+    line-height: 1.5;
+  }
+
+  @keyframes popWinner {
+    0% {
+      transform: scale(0.9);
+      opacity: 0;
+    }
+    100% {
+      transform: scale(1);
+      opacity: 1;
+    }
+  }
+
+  #roulette {
+    flex: none;
+    display: flex;
+    gap: 10px;
+    width: 100%;
+  }
+
+  #roulette:empty {
+    display: none;
+  }
+
+  .slot {
+    flex: 1;
+    min-width: 0;
+    padding: 1.6vmin 8px;
+    text-align: center;
+    border-radius: 14px;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);
+    font-size: clamp(1.1rem, 3.6vmin, 3rem);
+    font-weight: 700;
+    line-height: 1.3;
+    color: var(--ink);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    transition: background 0.08s ease, color 0.08s ease;
+  }
+
+  .active {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #ffffff;
+  }
+
+  .winner {
+    background: var(--ink-strong);
+    border-color: var(--ink-strong);
+    color: #ffffff;
+    box-shadow: 0 0 0 4px rgba(79, 70, 229, 0.25), 0 8px 20px rgba(23, 37, 84, 0.25);
+  }
+
+  .bottom-bar {
+    flex: none;
+    display: flex;
+    align-items: center;
+    gap: 18px;
+  }
+
+  .controls {
+    display: flex;
+    gap: 10px;
+    flex: none;
+  }
+
+  button.main-btn {
+    font-size: 1.2rem;
+    padding: 12px 38px;
+    border-radius: 999px;
+    border: none;
+    cursor: pointer;
+    background: linear-gradient(135deg, var(--accent), #2563eb);
+    color: #ffffff;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    box-shadow: 0 8px 20px rgba(79, 70, 229, 0.3);
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+  }
+
+  button.main-btn:hover:not(:disabled) {
+    transform: translateY(-1px);
+    box-shadow: 0 10px 24px rgba(79, 70, 229, 0.38);
+  }
+
+  button.main-btn:disabled {
+    opacity: 0.5;
+    cursor: default;
+  }
+
+  button.secondary-btn {
+    font-size: 1rem;
+    padding: 12px 24px;
+    border-radius: 999px;
+    border: 1px solid var(--line);
+    background: var(--surface);
+    color: var(--ink);
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s ease, border-color 0.15s ease;
+  }
+
+  button.secondary-btn:hover {
+    background: #f8fafc;
+    border-color: #cbd5e1;
+  }
+
+  .info {
+    flex: 1;
+    min-width: 0;
+    font-size: 1rem;
+    color: var(--text-muted);
+    line-height: 1.5;
+  }
+
+  #remainingInfo {
+    font-weight: 700;
+    color: var(--ink);
+  }
+
+  #chosenList {
+    max-height: 3em;
+    overflow-y: auto;
+    word-break: break-word;
+  }
+
+  @media (max-width: 700px) {
+    .bottom-bar {
+      flex-direction: column;
+      align-items: stretch;
+    }
+    .controls {
+      justify-content: center;
+    }
+    .topbar h1 {
+      display: none;
+    }
+  }
+
+  /* 名簿タブ */
+  #listTab {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 16px;
+    max-width: 900px;
+    width: 100%;
+    margin: 0 auto;
+  }
+
+  .mode-section {
+    display: inline-flex;
+    align-self: flex-start;
+    gap: 2px;
+    padding: 3px;
+    border-radius: 999px;
+    background: #eef1f6;
+  }
+
+  .mode-pill input {
+    display: none;
+  }
+
+  .mode-pill span {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 7px 20px;
+    border-radius: 999px;
+    font-size: 0.95rem;
+    font-weight: 600;
+    cursor: pointer;
+    color: var(--text-muted);
+    transition: background 0.2s ease, color 0.2s ease;
+  }
+
+  .mode-pill input:checked + span {
+    background: var(--surface);
+    color: var(--ink);
+    box-shadow: 0 1px 3px rgba(15, 23, 42, 0.12);
+  }
+
+  .card {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    padding: 16px 16px 16px;
+    border-radius: 20px;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    box-shadow: var(--shadow);
+  }
+
+  .card-title {
+    font-size: 1rem;
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-weight: 700;
+  }
+
+  textarea {
+    flex: 1;
+    min-height: 120px;
+    width: 100%;
+    background: #fbfcfe;
+    color: var(--ink);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    font-family: inherit;
+    font-size: 1.05rem;
+    padding: 10px 12px;
+    resize: none;
+    outline: none;
+    line-height: 1.6;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  }
+
+  textarea:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 4px rgba(79, 70, 229, 0.12);
+  }
+
+  .card-footer {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    margin-top: 10px;
+  }
+
+  .helper-text {
+    flex: 1;
+    font-size: 0.9rem;
+    color: var(--text-muted);
+    line-height: 1.6;
+  }
+</style>
+</head>
+<body>
+<div class="topbar">
+  <h1>生徒指名システム</h1>
+  <div class="tabs" role="tablist">
+    <button class="tab-btn" role="tab" id="pickTabBtn" aria-selected="true" onclick="showTab('pick')">指名</button>
+    <button class="tab-btn" role="tab" id="listTabBtn" aria-selected="false" onclick="showTab('list')">名簿</button>
+  </div>
+  <div class="spacer"></div>
+  <label id="quickCount" class="quick-count">人数
+    <input type="number" id="countQuick" min="1" max="200" value="40" oninput="onCountInput(this)"> 人
+  </label>
+  <span id="modeLabel" class="mode-label" hidden></span>
+  <button class="small-btn" onclick="toggleFullscreen()">⛶ 全画面</button>
+</div>
+
+<!-- 指名タブ -->
+<main id="pickTab" role="tabpanel">
+  <div id="bigWinnerBox" class="big-winner-box">
+    <div class="big-winner-label">SELECTED</div>
+    <div id="bigWinnerName" class="big-winner-name">---</div>
+    <div id="bigWinnerDirection" class="big-winner-direction">---</div>
+    <div id="bigWinnerSub" class="big-winner-sub">「指名する」またはスペースキーで指名します。</div>
+  </div>
+
+  <div id="roulette"></div>
+
+  <div class="bottom-bar">
+    <div class="controls">
+      <button id="startBtn" class="main-btn" onclick="startRoulette()">指名する</button>
+      <button class="secondary-btn" onclick="resetRoulette()">リセット</button>
+    </div>
+    <div class="info">
+      <div id="remainingInfo"></div>
+      <div id="chosenList"></div>
+    </div>
+  </div>
+</main>
+
+<!-- 名簿タブ -->
+<section id="listTab" role="tabpanel" hidden>
+  <div class="mode-section">
+    <label class="mode-pill">
+      <input type="radio" name="mode" value="count" checked onchange="switchMode()">
+      <span>人数だけ</span>
+    </label>
+    <label class="mode-pill">
+      <input type="radio" name="mode" value="name" onchange="switchMode()">
+      <span>氏名</span>
+    </label>
+    <label class="mode-pill">
+      <input type="radio" name="mode" value="group" onchange="switchMode()">
+      <span>グループ名</span>
+    </label>
+  </div>
+
+  <div id="countMode" class="card count-card">
+    <div class="card-title">
+      <span>🔢</span>
+      <span>人数だけで指名</span>
+    </div>
+    <div class="count-row">
+      <input type="number" id="countList" min="1" max="200" value="40" oninput="onCountInput(this)"> 人
+    </div>
+    <div class="card-footer">
+      <div class="helper-text">
+        名簿を入力しなくても，1番〜〇番で指名できます。<br>
+        人数は「指名」タブ上部の欄からも変更できます。
+      </div>
+    </div>
+  </div>
+
+  <div id="nameMode" class="card" hidden>
+    <div class="card-title">
+      <span>👤</span>
+      <span>氏名の名簿</span>
+    </div>
+    <textarea id="nameList" oninput="onListInput()" placeholder="例：
+山田太郎
+佐藤花子
+鈴木一郎"></textarea>
+    <div class="card-footer">
+      <div class="helper-text">
+        1行に1人ずつ入力してください。<br>
+        空白区切りでも読み取れますが，氏名に空白が入る場合は改行入力が確実です。<br>
+        未入力のときはサンプル（1番〜40番）を使用します。
+      </div>
+      <button class="small-btn" onclick="clearNameList()">入力をクリア</button>
+    </div>
+  </div>
+
+  <div id="groupMode" class="card" hidden>
+    <div class="card-title">
+      <span>👥</span>
+      <span>グループ名の名簿</span>
+    </div>
+    <textarea id="groupList" oninput="onListInput()" placeholder="例：
+1班
+2班
+3班"></textarea>
+    <div class="card-footer">
+      <div class="helper-text">
+        1行に1グループずつ入力してください。<br>
+        改行または空白区切りで読み取ります。<br>
+        未入力のときはサンプル（1班〜8班）を使用します。
+      </div>
+      <button class="small-btn" onclick="clearGroupList()">入力をクリア</button>
+    </div>
+  </div>
+</section>
+
+<script>
+let chosen = new Set();
+let currentMode = "count";
+let isSpinning = false;
+
+const defaultNames = [
+  "1番", "2番", "3番", "4番", "5番",
+  "6番", "7番", "8番", "9番", "10番",
+  "11番", "12番", "13番", "14番", "15番",
+  "16番", "17番", "18番", "19番", "20番",
+  "21番", "22番", "23番", "24番", "25番",
+  "26番", "27番", "28番", "29番", "30番",
+  "31番", "32番", "33番", "34番", "35番",
+  "36番", "37番", "38番", "39番", "40番"
+];
+
+const defaultGroups = [
+  "1班", "2班", "3班", "4班", "5班", "6班", "7班", "8班"
+];
+
+function showTab(tab) {
+  document.getElementById("pickTab").hidden = (tab !== "pick");
+  document.getElementById("listTab").hidden = (tab !== "list");
+  document.getElementById("pickTabBtn").setAttribute("aria-selected", tab === "pick");
+  document.getElementById("listTabBtn").setAttribute("aria-selected", tab === "list");
+  if (tab === "pick") updateInfo();
+}
+
+function toggleFullscreen() {
+  if (document.fullscreenElement) {
+    document.exitFullscreen();
+  } else if (document.documentElement.requestFullscreen) {
+    document.documentElement.requestFullscreen();
+  }
+}
+
+function switchMode() {
+  const mode = document.querySelector('input[name="mode"]:checked').value;
+  currentMode = mode;
+  document.getElementById("countMode").hidden = (mode !== "count");
+  document.getElementById("nameMode").hidden = (mode !== "name");
+  document.getElementById("groupMode").hidden = (mode !== "group");
+  resetRoulette();
+}
+
+function onListInput() {
+  updateInfo();
+}
+
+function onCountInput(src) {
+  for (const id of ["countQuick", "countList"]) {
+    const el = document.getElementById(id);
+    if (el !== src) el.value = src.value;
+  }
+  resetRoulette();
+}
+
+function getCountNames() {
+  let n = parseInt(document.getElementById("countList").value, 10);
+  if (!Number.isFinite(n) || n < 1) return [...defaultNames];
+  n = Math.min(n, 200);
+  return Array.from({ length: n }, (_, i) => `${i + 1}番`);
+}
+
+function parseNames(text, defaults) {
+  const trimmed = text.trim();
+  if (trimmed === "") return [...defaults];
+
+  let items = [];
+
+  if (trimmed.includes("\n")) {
+    items = trimmed
+      .split(/\r?\n/)
+      .map(s => s.trim())
+      .filter(s => s !== "");
+  } else {
+    items = trimmed
+      .split(/\s+/)
+      .map(s => s.trim())
+      .filter(s => s !== "");
+  }
+
+  const uniqueItems = [];
+  const seen = new Set();
+
+  for (const name of items) {
+    if (!seen.has(name)) {
+      seen.add(name);
+      uniqueItems.push(name);
+    }
+  }
+
+  return uniqueItems.length > 0 ? uniqueItems : [...defaults];
+}
+
+function getNameList() {
+  if (currentMode === "count") {
+    return getCountNames();
+  } else if (currentMode === "group") {
+    const text = document.getElementById("groupList").value;
+    return parseNames(text, defaultGroups);
+  } else {
+    const text = document.getElementById("nameList").value;
+    return parseNames(text, defaultNames);
+  }
+}
+
+function updateInfo() {
+  const allNames = getNameList();
+  const remaining = allNames.filter(name => !chosen.has(name));
+  const chosenArr = Array.from(chosen);
+
+  const chosenListDiv = document.getElementById("chosenList");
+  const remainingInfoDiv = document.getElementById("remainingInfo");
+
+  if (chosenArr.length > 0) {
+    chosenListDiv.textContent = "当たった人： " + chosenArr.join("， ");
+  } else {
+    chosenListDiv.textContent = "まだ誰も当たっていません。";
+  }
+
+  remainingInfoDiv.textContent = `残り人数：${remaining.length} / 全体：${allNames.length}`;
+
+  const modeLabel = (currentMode === "group")
+    ? `グループ名（${allNames.length}グループ）`
+    : `氏名（${allNames.length}人）`;
+  document.getElementById("modeLabel").textContent = modeLabel;
+  document.getElementById("modeLabel").hidden = (currentMode === "count");
+  document.getElementById("quickCount").hidden = (currentMode !== "count");
+}
+
+function setStatus(text) {
+  document.getElementById("bigWinnerSub").textContent = text;
+}
+
+function showBigWinner(name, direction) {
+  const box = document.getElementById("bigWinnerBox");
+  const nameDiv = document.getElementById("bigWinnerName");
+  const directionDiv = document.getElementById("bigWinnerDirection");
+
+  box.classList.remove("show");
+  void box.offsetWidth;
+
+  nameDiv.textContent = name;
+  if (currentMode === "group") {
+    directionDiv.hidden = true;
+    setStatus(`${name} が指名されました`);
+  } else {
+    directionDiv.hidden = false;
+    directionDiv.textContent = direction;
+    setStatus(`${name} さんから順に，${direction.replace(/^\S+\s/, "")}`);
+  }
+
+  box.classList.add("show");
+}
+
+function resetBigWinner() {
+  const box = document.getElementById("bigWinnerBox");
+  const nameDiv = document.getElementById("bigWinnerName");
+  const directionDiv = document.getElementById("bigWinnerDirection");
+
+  box.classList.remove("show");
+  nameDiv.textContent = "---";
+  directionDiv.textContent = "---";
+  directionDiv.hidden = (currentMode === "group");
+}
+
+function startRoulette() {
+  if (isSpinning) return;
+
+  const allNames = getNameList();
+  const remaining = allNames.filter(name => !chosen.has(name));
+
+  if (remaining.length === 0) {
+    setStatus("✨ 全員当たりました！ リセットすると最初からやり直せます。 ✨");
+    return;
+  }
+
+  isSpinning = true;
+  document.getElementById("startBtn").disabled = true;
+  setStatus("指名中…");
+
+  let pool = [...remaining];
+  let candidates = [];
+  while (candidates.length < 5 && pool.length > 0) {
+    let idx = Math.floor(Math.random() * pool.length);
+    candidates.push(pool.splice(idx, 1)[0]);
+  }
+
+  let rouletteDiv = document.getElementById("roulette");
+  rouletteDiv.innerHTML = "";
+
+  candidates.forEach(name => {
+    let span = document.createElement("div");
+    span.className = "slot";
+    span.innerText = name;
+    span.title = name;
+    rouletteDiv.appendChild(span);
+  });
+
+  let slots = document.querySelectorAll(".slot");
+
+  let index = 0;
+  let delay = 90;
+  let steps = 22;
+  const finalIndex = Math.floor(Math.random() * slots.length);
+
+  function spin(step) {
+    slots.forEach(s => s.classList.remove("active"));
+    slots[index].classList.add("active");
+
+    if (step < steps) {
+      index = (index + 1) % slots.length;
+      delay *= 1.08;
+      setTimeout(() => spin(step + 1), delay);
+    } else {
+      slots.forEach(s => s.classList.remove("active"));
+      slots[finalIndex].classList.add("winner");
+
+      const winner = slots[finalIndex].innerText;
+      chosen.add(winner);
+
+      const directions = ["➡️ 右へ", "⬅️ 左へ", "⬆️ 前へ", "⬇️ 後ろへ"];
+      const direction = directions[Math.floor(Math.random() * directions.length)];
+
+      showBigWinner(winner, direction);
+
+      updateInfo();
+
+      isSpinning = false;
+      document.getElementById("startBtn").disabled = false;
+    }
+  }
+
+  spin(0);
+}
+
+function resetRoulette() {
+  chosen.clear();
+  resetBigWinner();
+  setStatus("🔄 リセットしました");
+  document.getElementById("roulette").innerHTML = "";
+  updateInfo();
+}
+
+function clearNameList() {
+  document.getElementById("nameList").value = "";
+  resetRoulette();
+}
+
+function clearGroupList() {
+  document.getElementById("groupList").value = "";
+  resetRoulette();
+}
+
+// 指名タブ表示中は，スペース／Enterキーで指名
+document.addEventListener("keydown", (e) => {
+  if (document.getElementById("pickTab").hidden) return;
+  if (e.target.closest("button, textarea, input")) return;
+  if (e.key === " " || e.key === "Enter") {
+    e.preventDefault();
+    startRoulette();
+  }
+});
+
+updateInfo();
+</script>
+</body>
+</html>
