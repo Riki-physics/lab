@@ -228,7 +228,7 @@
     <div class="eyebrow">データ処理 · 繰り返し測定</div>
     <h1>繰り返し測定の比較ツール</h1>
     <p class="lead">
-    1. 同じ測定を何回か繰り返したデータを，1回ぶんずつ列に貼り付けます（Excel・Numbers・センサーアプリからそのままコピーできます）。Arduino の測定画面で保存した JSON ファイルは「JSON を読み込む」で，1ファイルを1回ぶんとしてまとめて読み込めます。「Excel 形式で書き出す」は表とグラフを .xlsx で保存します（Numbers でもそのまま開けます）。「JSON で書き出す」で保存したファイルは，このツールや散布図＆フィッティングツールでそのまま読み込めます。<br>
+    1. 同じ測定を何回か繰り返したデータを，1回ぶんずつ列に貼り付けます（Excel・Numbers・センサーアプリからそのままコピーできます）。Arduino の測定画面で保存した JSON ファイルは「JSON を読み込む」で，1ファイルを1回ぶんとしてまとめて読み込めます。「Excel 形式で書き出す」は表とグラフを .xlsx で保存します。iPad の Numbers で開くときは「Numbers 用に書き出す」を使うと，軸の見出しの斜体がくずれません。「JSON で書き出す」で保存したファイルは，このツールや散布図＆フィッティングツールでそのまま読み込めます。<br>
     2. サンプリングレート［Hz］か サンプリング間隔 Δ<span class="sym">t</span>［s］を入れると，横軸が自動で時刻［s］に変換されます（2つは連動。どちらも空欄にするとサンプル番号に戻ります）。<br>
     3. 全部の試行が1つのグラフに重ねて表示されるので，測定のばらつき（再現性）がひと目で分かります。
   </p>
@@ -303,6 +303,7 @@
         <div class="tablebtns">
           <button id="jsonOpenBtn" type="button">📂 JSON を読み込む（複数選べます）</button>
           <button id="xlsxBtn" type="button">⬇ Excel 形式で書き出す</button>
+          <button id="numXlsxBtn" type="button">⬇ Numbers 用に書き出す</button>
           <button id="jsonSaveBtn" type="button">⬇ JSON で書き出す</button>
           <input type="file" id="jsonInput" accept=".json,application/json" multiple hidden>
         </div>
@@ -1492,9 +1493,20 @@
   }
 
   // 軸の見出し：量の記号は斜体の Times New Roman，単位は立体
+  // Numbers 用に書き出すときは true（Numbers は見出しの最初の文字の書式で全体をそろえてしまうため）
+  let xlsxForNumbers = false;
+  // 数学用イタリック文字（U+1D44E など）に置き換える。Numbers では立体のまま斜体に見える
+  const mathItalic = s => [...s].map(c =>
+    c === "h" ? "\u210E"
+      : /[a-z]/.test(c) ? String.fromCodePoint(0x1D44E + c.charCodeAt(0) - 97)
+      : /[A-Z]/.test(c) ? String.fromCodePoint(0x1D434 + c.charCodeAt(0) - 65)
+      : c).join("");
+
   function axisTitleXml(sym, unit, rotate) {
-    const run = (text, italic) => `<a:r><a:rPr lang="ja-JP" sz="1200" i="${italic ? 1 : 0}"><a:latin typeface="Times New Roman"/></a:rPr><a:t>${xmlEsc(text)}</a:t></a:r>`;
-    const body = (sym ? run(sym, true) : "") + (unit ? run((sym ? " " : "") + `[${unit}]`, false) : "");
+    const run = (text, italic) => `<a:r><a:rPr lang="ja-JP" sz="1200" b="0" i="${italic ? 1 : 0}"><a:latin typeface="Times New Roman"/></a:rPr><a:t>${xmlEsc(text)}</a:t></a:r>`;
+    const body = xlsxForNumbers
+      ? run((sym ? mathItalic(sym) : "") + (unit ? (sym ? " " : "") + `[${unit}]` : ""), false)
+      : (sym ? run(sym, true) : "") + (unit ? run((sym ? " " : "") + `[${unit}]`, false) : "");
     return `<c:title><c:tx><c:rich><a:bodyPr${rotate ? ' rot="-5400000" vert="horz"' : ""}/><a:p>${body}</a:p></c:rich></c:tx><c:overlay val="0"/></c:title>`;
   }
 
@@ -1605,6 +1617,12 @@
     return `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}_${p(d.getHours())}${p(d.getMinutes())}`;
   }
 
+  // Numbers 用：同じ書き出しを，軸の見出しだけ Numbers 向けにして行う
+  document.getElementById("numXlsxBtn").addEventListener("click", () => {
+    xlsxForNumbers = true;
+    try { document.getElementById("xlsxBtn").click(); } finally { xlsxForNumbers = false; }
+  });
+
   document.getElementById("xlsxBtn").addEventListener("click", () => {
     const data = readData();
     const trials = [];
@@ -1631,7 +1649,7 @@
       series: trials.map((t, i) => ({ name: trialName(t), col: i + 1, color: trialColor(t) })),
       line: document.getElementById("optLine").checked,
     };
-    const filename = `繰り返し測定_${fileStamp()}.xlsx`;
+    const filename = `繰り返し測定_${fileStamp()}${xlsxForNumbers ? "_Numbers" : ""}.xlsx`;
     saveBlob(buildXlsx("データ", header, rows, [chart]), filename);
     setJsonStatus(`${filename} を保存しました（${trials.length} 回分の表とグラフ入り。iPad では「ファイル」App の「ダウンロード」に入ります）。`);
   });

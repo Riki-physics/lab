@@ -263,7 +263,7 @@
     <div class="eyebrow">データ処理 · 散布図と最小二乗法</div>
     <h1>散布図＆フィッティングツール</h1>
     <p class="lead">
-    1. 下の表（表計算ソフトのように操作できます）に横軸・縦軸の値を入力，または Excel や Numbers からコピーしたデータをそのまま貼り付けると，グラフに反映されます。Arduino の測定画面で保存した JSON ファイルは「JSON を読み込む」で開けます。「Excel 形式で書き出す」は表と散布図を .xlsx で保存します（Numbers でもそのまま開けます）。「JSON で書き出す」で保存したファイルは，このツールや繰り返し測定の比較ツールでそのまま読み込めます。<br>
+    1. 下の表（表計算ソフトのように操作できます）に横軸・縦軸の値を入力，または Excel や Numbers からコピーしたデータをそのまま貼り付けると，グラフに反映されます。Arduino の測定画面で保存した JSON ファイルは「JSON を読み込む」で開けます。「Excel 形式で書き出す」は表と散布図を .xlsx で保存します。iPad の Numbers で開くときは「Numbers 用に書き出す」を使うと，軸の見出しの斜体がくずれません。「JSON で書き出す」で保存したファイルは，このツールや繰り返し測定の比較ツールでそのまま読み込めます。<br>
     2. グラフ下の「関数」欄で近似曲線の種類を選ぶと，最小二乗法で自動フィットされた曲線が表示されます。<br>
     3. グラフ上の <b>●</b> を直接ドラッグすると，その点を通るように曲線がリアルタイムに変形します。
   </p>
@@ -333,6 +333,7 @@
         <div class="tablebtns">
           <button id="jsonOpenBtn" type="button">📂 JSON を読み込む</button>
           <button id="xlsxBtn" type="button">⬇ Excel 形式で書き出す</button>
+          <button id="numXlsxBtn" type="button">⬇ Numbers 用に書き出す</button>
           <button id="jsonSaveBtn" type="button">⬇ JSON で書き出す</button>
           <input type="file" id="jsonInput" accept=".json,application/json" hidden>
         </div>
@@ -2262,9 +2263,20 @@
   }
 
   // 軸の見出し：量の記号は斜体の Times New Roman，単位は立体
+  // Numbers 用に書き出すときは true（Numbers は見出しの最初の文字の書式で全体をそろえてしまうため）
+  let xlsxForNumbers = false;
+  // 数学用イタリック文字（U+1D44E など）に置き換える。Numbers では立体のまま斜体に見える
+  const mathItalic = s => [...s].map(c =>
+    c === "h" ? "\u210E"
+      : /[a-z]/.test(c) ? String.fromCodePoint(0x1D44E + c.charCodeAt(0) - 97)
+      : /[A-Z]/.test(c) ? String.fromCodePoint(0x1D434 + c.charCodeAt(0) - 65)
+      : c).join("");
+
   function axisTitleXml(sym, unit, rotate) {
-    const run = (text, italic) => `<a:r><a:rPr lang="ja-JP" sz="1200" i="${italic ? 1 : 0}"><a:latin typeface="Times New Roman"/></a:rPr><a:t>${xmlEsc(text)}</a:t></a:r>`;
-    const body = (sym ? run(sym, true) : "") + (unit ? run((sym ? " " : "") + `[${unit}]`, false) : "");
+    const run = (text, italic) => `<a:r><a:rPr lang="ja-JP" sz="1200" b="0" i="${italic ? 1 : 0}"><a:latin typeface="Times New Roman"/></a:rPr><a:t>${xmlEsc(text)}</a:t></a:r>`;
+    const body = xlsxForNumbers
+      ? run((sym ? mathItalic(sym) : "") + (unit ? (sym ? " " : "") + `[${unit}]` : ""), false)
+      : (sym ? run(sym, true) : "") + (unit ? run((sym ? " " : "") + `[${unit}]`, false) : "");
     return `<c:title><c:tx><c:rich><a:bodyPr${rotate ? ' rot="-5400000" vert="horz"' : ""}/><a:p>${body}</a:p></c:rich></c:tx><c:overlay val="0"/></c:title>`;
   }
 
@@ -2375,6 +2387,12 @@
     return `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}_${p(d.getHours())}${p(d.getMinutes())}`;
   }
 
+  // Numbers 用：同じ書き出しを，軸の見出しだけ Numbers 向けにして行う
+  document.getElementById("numXlsxBtn").addEventListener("click", () => {
+    xlsxForNumbers = true;
+    try { document.getElementById("xlsxBtn").click(); } finally { xlsxForNumbers = false; }
+  });
+
   document.getElementById("xlsxBtn").addEventListener("click", () => {
     const val = id => document.getElementById(id).value.trim();
     const xSym = val("xSym"), xUnit = formatUnitDisplay(val("xUnit"));
@@ -2398,7 +2416,7 @@
       series: [{ name: val(`s${k}Name`) || `縦軸${k}`, col: i + 1, color: COLORS[`series${k}`] }],
       line: false,
     }));
-    const filename = `散布図_${fileStamp()}.xlsx`;
+    const filename = `散布図_${fileStamp()}${xlsxForNumbers ? "_Numbers" : ""}.xlsx`;
     saveBlob(buildXlsx("データ", header, rows, charts), filename);
     setJsonStatus(`${filename} を保存しました（表と散布図入り。iPad では「ファイル」App の「ダウンロード」に入ります）。`);
   });
