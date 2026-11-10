@@ -1,0 +1,956 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>加速度センサー xyz</title>
+<style>
+  /* ---------- 共通デザイン（202611 版の計測ツール） ---------- */
+  :root {
+    --bg: #faf9f5;
+    --surface: #ffffff;
+    --surface-2: #f4f3ee;
+    --ink: #141413;
+    --ink-2: #3d3d3a;
+    --muted: #73726c;
+    --line: #e8e6dc;
+    --line-strong: #d6d3c7;
+    --accent: #d97757;
+    --accent-ink: #a8502f;
+    --accent-soft: #f7ebe4;
+    --ok: #3f7d4e;
+    --warn: #b4541f;
+    --radius: 14px;
+    --serif: "Hiragino Mincho ProN", "Yu Mincho", "YuMincho", Georgia, serif;
+    --sans: "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Noto Sans JP", "Yu Gothic UI", Meiryo, system-ui, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--sans);
+    font-feature-settings: "palt";
+    line-height: 1.6;
+  }
+  .page { max-width: 1040px; margin: 0 auto; padding: 28px 16px 64px; }
+
+  .hero { margin-bottom: 22px; }
+  .eyebrow {
+    font-size: 0.78rem;
+    letter-spacing: 0.14em;
+    color: var(--accent-ink);
+    font-weight: 600;
+    margin-bottom: 6px;
+  }
+  .hero h1 {
+    font-family: var(--serif);
+    font-weight: 600;
+    font-size: clamp(1.6rem, 4vw, 2.2rem);
+    line-height: 1.3;
+    margin: 0 0 8px;
+    letter-spacing: 0.02em;
+  }
+  .lede { margin: 0; color: var(--ink-2); max-width: 46em; }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 18px 18px 20px;
+    margin-bottom: 16px;
+  }
+  .card-title {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    font-size: 1.02rem;
+    font-weight: 700;
+    margin: 0 0 12px;
+  }
+  .card-title .step {
+    font-family: var(--serif);
+    font-size: 0.82rem;
+    color: var(--accent-ink);
+    background: var(--accent-soft);
+    border-radius: 999px;
+    padding: 1px 10px;
+    font-weight: 600;
+  }
+  .grid-2 { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; }
+  .grid-3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+  @media (max-width: 760px) {
+    .grid-2, .grid-3 { grid-template-columns: minmax(0, 1fr); }
+  }
+
+  .btn-row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+  .btn {
+    appearance: none;
+    font: inherit;
+    font-size: 0.98rem;
+    font-weight: 600;
+    padding: 10px 18px;
+    border-radius: 10px;
+    border: 1px solid var(--line-strong);
+    background: var(--surface);
+    color: var(--ink);
+    cursor: pointer;
+    transition: background 0.15s ease, border-color 0.15s ease, transform 0.05s ease;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .btn:hover:not(:disabled) { background: var(--surface-2); }
+  .btn:active:not(:disabled) { transform: translateY(1px); }
+  .btn:disabled { opacity: 0.45; cursor: default; }
+  .btn.primary { background: var(--ink); border-color: var(--ink); color: #fff; }
+  .btn.primary:hover:not(:disabled) { background: #2b2b29; }
+  .btn.accent { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .btn.accent:hover:not(:disabled) { background: #c96a4b; }
+  .btn.ghost { background: transparent; }
+
+  .status {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.92rem;
+    color: var(--ink-2);
+    background: var(--surface-2);
+    border-radius: 999px;
+    padding: 5px 14px;
+  }
+  .status::before {
+    content: "";
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--line-strong);
+  }
+  .status.live::before { background: var(--accent); animation: pulse 1.2s ease-in-out infinite; }
+  .status.done::before { background: var(--ok); }
+  @keyframes pulse { 50% { opacity: 0.3; } }
+
+  .stat {
+    background: var(--surface-2);
+    border-radius: 12px;
+    padding: 12px 14px;
+  }
+  .stat-label { font-size: 0.82rem; color: var(--muted); margin-bottom: 2px; }
+  .stat-value {
+    font-size: clamp(1.5rem, 4vw, 2rem);
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    line-height: 1.2;
+  }
+  .stat-value small { font-size: 0.55em; font-weight: 500; color: var(--muted); margin-left: 4px; }
+
+  .result {
+    font-family: var(--serif);
+    font-size: clamp(1.4rem, 4vw, 2rem);
+    font-weight: 600;
+    color: var(--ink);
+    margin: 4px 0 2px;
+    font-variant-numeric: tabular-nums;
+  }
+  .result-sub { color: var(--muted); font-size: 0.92rem; }
+
+  .chart { width: 100%; height: 320px; display: block; touch-action: none; }
+  .chart-box { border: 1px solid var(--line); border-radius: 12px; padding: 6px; background: var(--surface); }
+  .chart-info { font-size: 0.88rem; color: var(--muted); margin-top: 8px; min-height: 1.4em; font-variant-numeric: tabular-nums; }
+
+  .note { font-size: 0.88rem; color: var(--muted); margin: 10px 0 0; line-height: 1.7; }
+  .howto { margin: 0; padding-left: 1.3em; color: var(--ink-2); font-size: 0.94rem; line-height: 1.8; }
+
+  .q { font-family: "Times New Roman", Times, serif; font-style: italic; font-size: 1.08em; }
+
+  .field { display: flex; flex-direction: column; gap: 4px; }
+  .field label { font-size: 0.84rem; color: var(--muted); font-weight: 600; }
+  .field input[type="number"], .field input[type="text"] {
+    font: inherit;
+    padding: 9px 12px;
+    border: 1px solid var(--line-strong);
+    border-radius: 10px;
+    background: var(--surface);
+    color: var(--ink);
+    width: 100%;
+  }
+  input:focus-visible, .btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  input[type="range"] { accent-color: var(--accent); }
+
+  .seg { display: inline-flex; background: var(--surface-2); border-radius: 10px; padding: 3px; gap: 2px; }
+  .seg label { display: inline-flex; }
+  .seg input { position: absolute; opacity: 0; pointer-events: none; }
+  .seg span {
+    padding: 7px 14px; border-radius: 8px; font-size: 0.92rem; font-weight: 600; color: var(--muted); cursor: pointer;
+  }
+  .seg input:checked + span { background: var(--surface); color: var(--ink); box-shadow: 0 1px 2px rgba(20, 20, 19, 0.12); }
+  .seg input:disabled + span { opacity: 0.5; cursor: default; }
+
+  .table-wrap { max-height: 300px; overflow: auto; border: 1px solid var(--line); border-radius: 12px; }
+  table.data { width: 100%; border-collapse: collapse; font-size: 0.88rem; font-variant-numeric: tabular-nums; }
+  table.data th, table.data td { padding: 6px 10px; text-align: right; border-bottom: 1px solid var(--line); white-space: nowrap; }
+  table.data th { position: sticky; top: 0; background: var(--surface-2); color: var(--ink-2); font-weight: 600; z-index: 1; }
+  table.data td:first-child, table.data th:first-child { text-align: center; }
+  table.data tbody tr:last-child td { border-bottom: none; }
+
+  .export .btn { font-size: 0.92rem; padding: 9px 14px; }
+  .export-msg { font-size: 0.88rem; color: var(--muted); margin-top: 10px; min-height: 1.4em; }
+  .export-msg.ok { color: var(--ok); }
+  .export-msg.err { color: var(--warn); }
+
+  .site-foot { text-align: center; font-size: 0.8rem; color: var(--muted); margin-top: 28px; }
+</style>
+</head>
+<body>
+  <main class="page">
+    <header class="hero">
+      <div class="eyebrow">スマホ実験 · 加速度センサー</div>
+      <h1>加速度センサー xyz</h1>
+      <p class="lede">スマホの 3 方向の加速度を，重力を除いて表示・記録します。静止させて重力の向きを合わせてから，手に持って動かします。</p>
+    </header>
+
+    <div class="grid-2">
+      <section class="card">
+        <h2 class="card-title"><span class="step">軸</span>スマホの <span class="q" style="font-size:1em">x</span>・<span class="q" style="font-size:1em">y</span>・<span class="q" style="font-size:1em">z</span> 軸の向き</h2>
+        <svg viewBox="0 0 260 240" width="100%" style="max-width:300px;display:block;margin:0 auto" role="img" aria-label="スマホの軸の向き">
+          <defs>
+            <marker id="arX" markerWidth="12" markerHeight="12" refX="9" refY="5" orient="auto" markerUnits="userSpaceOnUse"><path d="M0,0 L10,5 L0,10 z" fill="#d1495b"/></marker>
+            <marker id="arY" markerWidth="12" markerHeight="12" refX="9" refY="5" orient="auto" markerUnits="userSpaceOnUse"><path d="M0,0 L10,5 L0,10 z" fill="#3f8f5a"/></marker>
+            <marker id="arZ" markerWidth="12" markerHeight="12" refX="9" refY="5" orient="auto" markerUnits="userSpaceOnUse"><path d="M0,0 L10,5 L0,10 z" fill="#3b6fb6"/></marker>
+          </defs>
+          <rect x="70" y="30" width="120" height="180" rx="20" fill="#f4f3ee" stroke="#3d3d3a" stroke-width="2"/>
+          <rect x="80" y="45" width="100" height="150" rx="10" fill="#fff" stroke="#e8e6dc"/>
+          <text x="108" y="178" text-anchor="middle" fill="#a3a197" font-size="13">画面</text>
+          <circle cx="130" cy="120" r="4" fill="#3d3d3a"/>
+          <line x1="130" y1="120" x2="212" y2="120" stroke="#d1495b" stroke-width="3" marker-end="url(#arX)"/>
+          <text x="214" y="112" fill="#d1495b" font-size="14" font-family="Times New Roman" font-style="italic">x</text>
+          <line x1="130" y1="120" x2="130" y2="42" stroke="#3f8f5a" stroke-width="3" marker-end="url(#arY)"/>
+          <text x="138" y="40" fill="#3f8f5a" font-size="14" font-family="Times New Roman" font-style="italic">y</text>
+          <line x1="130" y1="120" x2="172" y2="186" stroke="#3b6fb6" stroke-width="3" marker-end="url(#arZ)"/>
+          <text x="178" y="200" fill="#3b6fb6" font-size="14" font-family="Times New Roman" font-style="italic">z</text>
+        </svg>
+        <p class="note" style="text-align:center">画面を上にして水平に置いたとき：右へ加速 → <span class="q">x</span>，上（画面の上端の向き）へ加速 → <span class="q">y</span>，手前（画面から自分の顔の向き）へ加速 → <span class="q">z</span></p>
+      </section>
+
+      <section class="card">
+        <h2 class="card-title"><span class="step">1</span>測定する</h2>
+        <ol class="howto">
+          <li>「計測開始」を押し，スマホを机の上に約 1 秒静止させる（重力の向きを合わせる）</li>
+          <li>そのあと手に持って，振ったり動かしたりする</li>
+        </ol>
+        <div style="display:flex;flex-direction:column;gap:12px;margin-top:12px">
+          <div class="seg" role="radiogroup" aria-label="モード">
+            <label><input type="radio" name="mode" id="mode5" checked><span>5 秒測定（自動で停止）</span></label>
+            <label><input type="radio" name="mode" id="modeCont"><span>続けて測る（直近 5 秒を表示）</span></label>
+          </div>
+          <label class="field" style="max-width:320px">
+            <span style="font-size:0.84rem;color:var(--muted);font-weight:600">縦軸の範囲：±<span id="rangeLabel">7.5</span> m/s²</span>
+            <input type="range" id="rangeSlider" min="3" max="30" step="0.5" value="7.5">
+          </label>
+          <div class="btn-row">
+            <button class="btn accent" id="startBtn" type="button">計測開始</button>
+            <button class="btn" id="stopBtn" type="button" disabled>停止</button>
+            <button class="btn ghost" id="clearBtn" type="button">クリア</button>
+          </div>
+          <span class="status" id="status" style="align-self:flex-start">待機中</span>
+        </div>
+      </section>
+    </div>
+
+    <section class="card">
+      <h2 class="card-title"><span class="step">2</span>加速度（重力を除いた値）</h2>
+      <div class="grid-3">
+        <div class="stat"><div class="stat-label" style="color:#d1495b"><span class="q">a<sub>x</sub></span></div><div class="stat-value" id="vx">—<small>m/s²</small></div></div>
+        <div class="stat"><div class="stat-label" style="color:#3f8f5a"><span class="q">a<sub>y</sub></span></div><div class="stat-value" id="vy">—<small>m/s²</small></div></div>
+        <div class="stat"><div class="stat-label" style="color:#3b6fb6"><span class="q">a<sub>z</sub></span></div><div class="stat-value" id="vz">—<small>m/s²</small></div></div>
+      </div>
+      <div class="chart-box" style="margin-top:14px"><canvas class="chart" id="chart"></canvas></div>
+      <div class="chart-info" id="msg">「計測開始」を押してください。</div>
+    </section>
+
+    <section class="card">
+      <h2 class="card-title"><span class="step">3</span>データ（0.1 秒ごと・新しいものが下）</h2>
+      <div class="table-wrap" id="tableWrap">
+        <table class="data">
+          <thead><tr><th><span class="q">t</span> [s]</th><th><span class="q">a<sub>x</sub></span> [m/s²]</th><th><span class="q">a<sub>y</sub></span> [m/s²]</th><th><span class="q">a<sub>z</sub></span> [m/s²]</th><th>|<span class="q">a</span>| [m/s²]</th></tr></thead>
+          <tbody id="tableBody"></tbody>
+        </table>
+      </div>
+      <p class="note">保存するデータは，センサーから届いたすべての値です（表は 0.1 秒ごとに間引いて表示しています）。</p>
+    </section>
+
+    <section class="card export" id="exportCard">
+      <h2 class="card-title"><span class="step">保存</span>データを保存する</h2>
+      <div class="btn-row">
+        <button class="btn" type="button" data-export="xlsx">Excel で保存</button>
+        <button class="btn" type="button" data-export="numbers">Numbers 用に保存</button>
+        <button class="btn" type="button" data-export="json">JSON で保存</button>
+        <button class="btn ghost" type="button" data-export="tsv">表をコピー（TSV）</button>
+      </div>
+      <p class="note">Excel・Numbers 用は表とグラフが入ったファイル（.xlsx）です。iPad の Numbers で開くときは「Numbers 用」を使うと，グラフの軸の見出しが正しく表示されます。JSON は「散布図＆フィッティングツール」「繰り返し測定の比較ツール」でそのまま読み込めます。</p>
+      <p class="export-msg"></p>
+    </section>
+
+    <p class="site-foot">物理実験ツール · 2026年11月版</p>
+  </main>
+
+<script>
+// ---------- 共通部品（202611 版の計測ツール）：グラフ描画と保存 ----------
+// 外部ライブラリは使わない（オフラインの iPad でも動くように）
+const Lab = (() => {
+  "use strict";
+
+  const COL = {
+    plot: "#ffffff",
+    grid: "#efede6",
+    axis: "#bfbcb0",
+    zero: "#9a978c",
+    text: "#73726c",
+    ink: "#141413",
+  };
+
+  // ---------- 数値・目盛り ----------
+
+  function niceStep(range, count) {
+    const raw = range / Math.max(1, count);
+    const mag = Math.pow(10, Math.floor(Math.log10(raw)));
+    const f = raw / mag;
+    return (f < 1.5 ? 1 : f < 3 ? 2 : f < 7 ? 5 : 10) * mag;
+  }
+
+  function niceTicks(min, max, count) {
+    const step = niceStep(max - min, count);
+    const start = Math.floor(min / step + 1e-9) * step;
+    const end = Math.ceil(max / step - 1e-9) * step;
+    const ticks = [];
+    for (let v = start; v <= end + step * 1e-6; v += step) ticks.push(Math.abs(v) < step * 1e-9 ? 0 : v);
+    return { ticks, step };
+  }
+
+  function decimalsFor(step) {
+    return Math.max(0, Math.min(6, -Math.floor(Math.log10(step) + 1e-9)));
+  }
+
+  function extent(values) {
+    const v = values.filter(Number.isFinite);
+    if (!v.length) return [0, 1];
+    let lo = Math.min(...v), hi = Math.max(...v);
+    if (hi - lo < 1e-12) { lo -= 1; hi += 1; }
+    return [lo, hi];
+  }
+
+  // ---------- グラフ ----------
+
+  // 軸の見出し：量の記号は Times New Roman の斜体，添字は小さく，単位は立体
+  function drawAxisLabel(ctx, label, x, y, rotate) {
+    if (!label) return;
+    const size = 15;
+    const parts = [];
+    if (label.sym) parts.push({ text: label.sym, font: `italic ${size}px "Times New Roman", Times, serif`, dy: 0 });
+    if (label.sub) parts.push({ text: label.sub, font: `italic ${Math.round(size * 0.72)}px "Times New Roman", Times, serif`, dy: size * 0.28 });
+    if (label.unit) parts.push({ text: (label.sym ? " " : "") + `[${label.unit}]`, font: `${size}px "Times New Roman", Times, serif`, dy: 0 });
+    if (label.text) parts.push({ text: label.text, font: `${size - 2}px ${getComputedStyle(document.body).fontFamily}`, dy: 0 });
+    ctx.save();
+    ctx.translate(x, y);
+    if (rotate) ctx.rotate(-Math.PI / 2);
+    let total = 0;
+    parts.forEach(p => { ctx.font = p.font; p.w = ctx.measureText(p.text).width; total += p.w; });
+    let cx = -total / 2;
+    ctx.fillStyle = COL.ink;
+    ctx.textBaseline = "middle";
+    ctx.textAlign = "left";
+    parts.forEach(p => { ctx.font = p.font; ctx.fillText(p.text, cx, p.dy); cx += p.w; });
+    ctx.restore();
+  }
+
+  // o = {
+  //   series: [{ pts: [{x, y}], color, mode: "line" | "dot" | "both", width, radius }],
+  //   xRange, yRange（省略で自動）, includeZeroY, xLabel / yLabel: { sym, sub, unit, text },
+  //   refLines: [{ y, color, dash, label }], marker: { x, y, color }
+  // }
+  // 戻り値はタップした位置から値を求めるための座標変換
+  function drawPlot(canvas, o) {
+    const dpr = window.devicePixelRatio || 1;
+    const cssW = canvas.clientWidth || 600, cssH = canvas.clientHeight || 300;
+    const pxW = Math.round(cssW * dpr), pxH = Math.round(cssH * dpr);
+    if (canvas.width !== pxW || canvas.height !== pxH) { canvas.width = pxW; canvas.height = pxH; }
+    const ctx = canvas.getContext("2d");
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, cssW, cssH);
+
+    const m = { l: 62, r: 14, t: 12, b: 50 };
+    const pw = Math.max(10, cssW - m.l - m.r), ph = Math.max(10, cssH - m.t - m.b);
+    const all = o.series.flatMap(s => s.pts);
+
+    let [x0, x1] = o.xRange || extent(all.map(p => p.x));
+    let [y0, y1] = o.yRange || extent(all.map(p => p.y));
+    if (!o.yRange && o.includeZeroY) { y0 = Math.min(0, y0); y1 = Math.max(0, y1); }
+    const xt = niceTicks(x0, x1, Math.max(3, Math.round(pw / 90)));
+    const yt = niceTicks(y0, y1, Math.max(3, Math.round(ph / 55)));
+    if (!o.xRange) { x0 = xt.ticks[0]; x1 = xt.ticks[xt.ticks.length - 1]; }
+    if (!o.yRange) { y0 = yt.ticks[0]; y1 = yt.ticks[yt.ticks.length - 1]; }
+
+    const X = x => m.l + (x - x0) / (x1 - x0) * pw;
+    const Y = y => m.t + ph - (y - y0) / (y1 - y0) * ph;
+
+    ctx.fillStyle = COL.plot;
+    ctx.fillRect(m.l, m.t, pw, ph);
+
+    // 目盛り線と数値
+    ctx.font = `12px ${getComputedStyle(document.body).fontFamily}`;
+    ctx.fillStyle = COL.text;
+    ctx.lineWidth = 1;
+    const xd = decimalsFor(xt.step), yd = decimalsFor(yt.step);
+    ctx.textAlign = "center";
+    ctx.textBaseline = "top";
+    xt.ticks.forEach(v => {
+      if (v < x0 - 1e-9 || v > x1 + 1e-9) return;
+      const px = Math.round(X(v)) + 0.5;
+      ctx.strokeStyle = COL.grid;
+      ctx.beginPath(); ctx.moveTo(px, m.t); ctx.lineTo(px, m.t + ph); ctx.stroke();
+      ctx.fillText(v.toFixed(xd), px, m.t + ph + 6);
+    });
+    ctx.textAlign = "right";
+    ctx.textBaseline = "middle";
+    yt.ticks.forEach(v => {
+      if (v < y0 - 1e-9 || v > y1 + 1e-9) return;
+      const py = Math.round(Y(v)) + 0.5;
+      ctx.strokeStyle = COL.grid;
+      ctx.beginPath(); ctx.moveTo(m.l, py); ctx.lineTo(m.l + pw, py); ctx.stroke();
+      ctx.fillText(v.toFixed(yd), m.l - 8, py);
+    });
+    if (y0 < 0 && y1 > 0) {
+      const py = Math.round(Y(0)) + 0.5;
+      ctx.strokeStyle = COL.zero;
+      ctx.beginPath(); ctx.moveTo(m.l, py); ctx.lineTo(m.l + pw, py); ctx.stroke();
+    }
+    ctx.strokeStyle = COL.axis;
+    ctx.strokeRect(m.l + 0.5, m.t + 0.5, pw - 1, ph - 1);
+
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(m.l, m.t, pw, ph);
+    ctx.clip();
+
+    (o.refLines || []).forEach(r => {
+      const py = Y(r.y);
+      ctx.strokeStyle = r.color || COL.ink;
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash(r.dash || [6, 4]);
+      ctx.beginPath(); ctx.moveTo(m.l, py); ctx.lineTo(m.l + pw, py); ctx.stroke();
+      ctx.setLineDash([]);
+      if (r.label) {
+        ctx.fillStyle = r.color || COL.ink;
+        ctx.font = `12px ${getComputedStyle(document.body).fontFamily}`;
+        ctx.textAlign = "right";
+        ctx.textBaseline = "bottom";
+        ctx.fillText(r.label, m.l + pw - 6, py - 3);
+      }
+    });
+
+    o.series.forEach(s => {
+      const pts = s.pts.filter(p => Number.isFinite(p.x) && Number.isFinite(p.y));
+      if (!pts.length) return;
+      const mode = s.mode || "line";
+      if (mode === "line" || mode === "both") {
+        ctx.strokeStyle = s.color;
+        ctx.lineWidth = s.width || 2;
+        ctx.lineJoin = "round";
+        ctx.beginPath();
+        pts.forEach((p, i) => (i ? ctx.lineTo(X(p.x), Y(p.y)) : ctx.moveTo(X(p.x), Y(p.y))));
+        ctx.stroke();
+      }
+      if (mode === "dot" || mode === "both") {
+        ctx.fillStyle = s.color;
+        const r = s.radius || 3.5;
+        pts.forEach(p => { ctx.beginPath(); ctx.arc(X(p.x), Y(p.y), r, 0, Math.PI * 2); ctx.fill(); });
+      }
+    });
+
+    if (o.marker && Number.isFinite(o.marker.x) && Number.isFinite(o.marker.y)) {
+      const mx = X(o.marker.x), my = Y(o.marker.y);
+      ctx.strokeStyle = "rgba(20,20,19,0.25)";
+      ctx.setLineDash([3, 3]);
+      ctx.beginPath(); ctx.moveTo(mx, m.t); ctx.lineTo(mx, m.t + ph); ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillStyle = "#fff";
+      ctx.strokeStyle = o.marker.color || COL.ink;
+      ctx.lineWidth = 2.5;
+      ctx.beginPath(); ctx.arc(mx, my, 6, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+    }
+    ctx.restore();
+
+    drawAxisLabel(ctx, o.xLabel, m.l + pw / 2, cssH - 12, false);
+    drawAxisLabel(ctx, o.yLabel, 16, m.t + ph / 2, true);
+
+    return { X, Y, x0, x1, y0, y1, m, pw, ph, xAt: px => x0 + (px - m.l) / pw * (x1 - x0) };
+  }
+
+  // タップ・クリックした位置の x（グラフの値）を返す
+  function xFromEvent(canvas, geom, e) {
+    if (!geom) return null;
+    const rect = canvas.getBoundingClientRect();
+    const p = e.touches ? e.touches[0] : e;
+    return geom.xAt(p.clientX - rect.left);
+  }
+
+  function nearest(pts, x) {
+    let best = null, bd = Infinity;
+    pts.forEach(p => { const d = Math.abs(p.x - x); if (d < bd) { bd = d; best = p; } });
+    return best;
+  }
+
+  // ---------- 保存 ----------
+
+  function stamp() {
+    const d = new Date(), p = n => String(n).padStart(2, "0");
+    return `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}_${p(d.getHours())}${p(d.getMinutes())}`;
+  }
+
+  function saveBlob(blob, filename) {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
+  }
+
+  async function copyText(text) {
+    try {
+      await navigator.clipboard.writeText(text);
+      return true;
+    } catch (e) {
+      const ta = document.createElement("textarea");
+      ta.value = text;
+      ta.style.position = "fixed";
+      ta.style.opacity = "0";
+      document.body.appendChild(ta);
+      ta.select();
+      ta.setSelectionRange(0, text.length);
+      let ok = false;
+      try { ok = document.execCommand("copy"); } catch (e2) { ok = false; }
+      ta.remove();
+      return ok;
+    }
+  }
+
+  // ---------- .xlsx（XML を zip にまとめたもの） ----------
+
+  let crcTable = null;
+  function crc32(bytes) {
+    if (!crcTable) {
+      crcTable = Array.from({ length: 256 }, (_, n) => {
+        for (let k = 0; k < 8; k++) n = n & 1 ? 0xEDB88320 ^ (n >>> 1) : n >>> 1;
+        return n >>> 0;
+      });
+    }
+    let c = -1;
+    for (let i = 0; i < bytes.length; i++) c = crcTable[(c ^ bytes[i]) & 255] ^ (c >>> 8);
+    return ~c >>> 0;
+  }
+
+  // 圧縮なし（store）の zip
+  function zipBlob(files, type) {
+    const enc = new TextEncoder();
+    const parts = [], central = [];
+    const d = new Date();
+    const dosDate = (d.getFullYear() - 1980) << 9 | (d.getMonth() + 1) << 5 | d.getDate();
+    const dosTime = d.getHours() << 11 | d.getMinutes() << 5 | d.getSeconds() >> 1;
+    let offset = 0;
+    files.forEach(([name, text]) => {
+      const nb = enc.encode(name), body = enc.encode(text), crc = crc32(body);
+      const header = isCentral => {
+        const v = new DataView(new ArrayBuffer(isCentral ? 46 : 30));
+        let p = 0;
+        const u16 = x => { v.setUint16(p, x, true); p += 2; };
+        const u32 = x => { v.setUint32(p, x, true); p += 4; };
+        u32(isCentral ? 0x02014b50 : 0x04034b50);
+        if (isCentral) u16(20);
+        u16(20); u16(0x800); u16(0); u16(dosTime); u16(dosDate);
+        u32(crc); u32(body.length); u32(body.length); u16(nb.length); u16(0);
+        if (isCentral) { u16(0); u16(0); u16(0); u32(0); u32(offset); }
+        return new Uint8Array(v.buffer);
+      };
+      central.push(header(true), nb);
+      parts.push(header(false), nb, body);
+      offset += 30 + nb.length + body.length;
+    });
+    const centralLen = central.reduce((s, x) => s + x.length, 0);
+    const end = new DataView(new ArrayBuffer(22));
+    end.setUint32(0, 0x06054b50, true);
+    end.setUint16(8, files.length, true);
+    end.setUint16(10, files.length, true);
+    end.setUint32(12, centralLen, true);
+    end.setUint32(16, offset, true);
+    return new Blob([...parts, ...central, new Uint8Array(end.buffer)], { type });
+  }
+
+  const xmlEsc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+  const colName = i => (i >= 26 ? String.fromCharCode(64 + Math.floor(i / 26)) : "") + String.fromCharCode(65 + i % 26);
+  const XML_HEAD = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n';
+  const NS_MAIN = "http://schemas.openxmlformats.org/spreadsheetml/2006/main";
+  const NS_R = "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
+  const NS_A = "http://schemas.openxmlformats.org/drawingml/2006/main";
+  const NS_C = "http://schemas.openxmlformats.org/drawingml/2006/chart";
+
+  // Numbers は軸の見出しの書体を 1 文字目にそろえてしまう（単位まで斜体になる）ので，
+  // Numbers 用では記号を数学用イタリックの文字（𝑡 など）にして，見出し全体は立体で書く
+  const mathItalic = s => [...s].map(c =>
+    c === "h" ? "ℎ"
+      : /[a-z]/.test(c) ? String.fromCodePoint(0x1D44E + c.charCodeAt(0) - 97)
+      : /[A-Z]/.test(c) ? String.fromCodePoint(0x1D434 + c.charCodeAt(0) - 65)
+      : c).join("");
+
+  function relsXml(list) {
+    return XML_HEAD + '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' +
+      list.map(([id, type, target]) => `<Relationship Id="${id}" Type="${NS_R}/${type}" Target="${target}"/>`).join("") +
+      "</Relationships>";
+  }
+
+  // 軸の見出し：Excel 用は記号（ラテン文字だけ）を斜体の Times New Roman，単位は立体
+  function axisTitleXml(label, rotate, forNumbers) {
+    const run = (text, italic, extra) =>
+      `<a:r><a:rPr lang="ja-JP" sz="1200" b="0" i="${italic ? 1 : 0}"${extra || ""}><a:latin typeface="Times New Roman"/></a:rPr><a:t>${xmlEsc(text)}</a:t></a:r>`;
+    const unit = label.unit ? `[${label.unit}]` : "";
+    let body;
+    if (forNumbers) {
+      body = run((label.sym ? mathItalic(label.sym) + (label.sub ? mathItalic(label.sub) : "") + (unit ? " " : "") : "") + unit + (label.text || ""), false);
+    } else {
+      body = (label.sym || "").split(/([A-Za-z]+)/).filter(Boolean).map(s => run(s, /[A-Za-z]/.test(s))).join("") +
+        (label.sub ? run(label.sub, true, ' baseline="-25000"') : "") +
+        (unit ? run((label.sym ? " " : "") + unit, false) : "") +
+        (label.text ? run(label.text, false) : "");
+    }
+    return `<c:title><c:tx><c:rich><a:bodyPr${rotate ? ' rot="-5400000" vert="horz"' : ""}/><a:p>${body}</a:p></c:rich></c:tx><c:overlay val="0"/></c:title>`;
+  }
+
+  function numRefXml(ref, vals) {
+    return `<c:numRef><c:f>${ref}</c:f><c:numCache><c:formatCode>General</c:formatCode><c:ptCount val="${vals.length}"/>` +
+      vals.map((v, i) => (typeof v === "number" && Number.isFinite(v)) ? `<c:pt idx="${i}"><c:v>${v}</c:v></c:pt>` : "").join("") +
+      "</c:numCache></c:numRef>";
+  }
+
+  // chart = { title, x: { col, sym, sub, unit }, y: { sym, sub, unit }, series: [{ name, col, color }], line }
+  function chartXml(chart, sheetName, rows, forNumbers) {
+    const n = rows.length;
+    const ref = c => `'${sheetName}'!$${colName(c)}$2:$${colName(c)}$${n + 1}`;
+    const colVals = c => rows.map(r => r[c]);
+    const xs = colVals(chart.x.col);
+    const sers = chart.series.map((s, i) => {
+      const color = s.color.replace("#", "").toUpperCase();
+      const line = chart.line
+        ? `<a:ln w="15875"><a:solidFill><a:srgbClr val="${color}"/></a:solidFill></a:ln>`
+        : `<a:ln w="12700"><a:noFill/></a:ln>`;
+      const marker = chart.line && chart.noMarker
+        ? '<c:marker><c:symbol val="none"/></c:marker>'
+        : `<c:marker><c:symbol val="circle"/><c:size val="4"/><c:spPr><a:solidFill><a:srgbClr val="${color}"/></a:solidFill><a:ln><a:noFill/></a:ln></c:spPr></c:marker>`;
+      return `<c:ser><c:idx val="${i}"/><c:order val="${i}"/><c:tx><c:v>${xmlEsc(s.name)}</c:v></c:tx><c:spPr>${line}</c:spPr>${marker}` +
+        `<c:xVal>${numRefXml(ref(chart.x.col), xs)}</c:xVal><c:yVal>${numRefXml(ref(s.col), colVals(s.col))}</c:yVal><c:smooth val="0"/></c:ser>`;
+    }).join("");
+    const axis = (id, cross, pos, label, rotate) =>
+      `<c:valAx><c:axId val="${id}"/><c:scaling><c:orientation val="minMax"/></c:scaling><c:delete val="0"/><c:axPos val="${pos}"/>` +
+      `<c:majorGridlines><c:spPr><a:ln w="6350"><a:solidFill><a:srgbClr val="E8E6DC"/></a:solidFill></a:ln></c:spPr></c:majorGridlines>` +
+      axisTitleXml(label, rotate, forNumbers) +
+      `<c:numFmt formatCode="General" sourceLinked="0"/><c:majorTickMark val="out"/><c:minorTickMark val="none"/><c:tickLblPos val="low"/>` +
+      `<c:crossAx val="${cross}"/><c:crosses val="autoZero"/><c:crossBetween val="midCat"/></c:valAx>`;
+    const legend = chart.series.length > 1 ? '<c:legend><c:legendPos val="r"/><c:overlay val="0"/></c:legend>' : "";
+    return XML_HEAD + `<c:chartSpace xmlns:c="${NS_C}" xmlns:a="${NS_A}" xmlns:r="${NS_R}"><c:roundedCorners val="0"/><c:chart>` +
+      `<c:title><c:tx><c:rich><a:bodyPr/><a:p><a:r><a:rPr lang="ja-JP" sz="1400" b="1"/><a:t>${xmlEsc(chart.title)}</a:t></a:r></a:p></c:rich></c:tx><c:overlay val="0"/></c:title><c:autoTitleDeleted val="0"/>` +
+      `<c:plotArea><c:layout/><c:scatterChart><c:scatterStyle val="lineMarker"/><c:varyColors val="0"/>${sers}<c:axId val="1"/><c:axId val="2"/></c:scatterChart>` +
+      axis(1, 2, "b", chart.x, false) + axis(2, 1, "l", chart.y, true) +
+      `</c:plotArea>${legend}<c:plotVisOnly val="1"/><c:dispBlanksAs val="gap"/></c:chart></c:chartSpace>`;
+  }
+
+  // header: 見出し，rows: 数値（空欄は null，文字列も可）の2次元配列，charts: chartXml の引数
+  function buildXlsx(header, rows, charts, forNumbers) {
+    const sheetName = "データ";
+    const strings = [], strIdx = new Map();
+    const sst = s => { if (!strIdx.has(s)) { strIdx.set(s, strings.length); strings.push(s); } return strIdx.get(s); };
+    const cell = (v, r, c) => {
+      const ref = colName(c) + (r + 1);
+      if (typeof v === "number" && Number.isFinite(v)) return `<c r="${ref}"><v>${v}</v></c>`;
+      if (typeof v === "string" && v !== "") return `<c r="${ref}" t="s"><v>${sst(v)}</v></c>`;
+      return "";
+    };
+    const sheetRows = [header, ...rows].map((row, r) =>
+      `<row r="${r + 1}">` + row.map((v, c) => cell(v, r, c)).join("") + "</row>").join("");
+
+    const W = 9, H = 20;
+    const anchors = charts.map((_, k) => {
+      const c0 = header.length + 1, r0 = 1 + k * (H + 1);
+      return `<xdr:twoCellAnchor><xdr:from><xdr:col>${c0}</xdr:col><xdr:colOff>0</xdr:colOff><xdr:row>${r0}</xdr:row><xdr:rowOff>0</xdr:rowOff></xdr:from>` +
+        `<xdr:to><xdr:col>${c0 + W}</xdr:col><xdr:colOff>0</xdr:colOff><xdr:row>${r0 + H}</xdr:row><xdr:rowOff>0</xdr:rowOff></xdr:to>` +
+        `<xdr:graphicFrame macro=""><xdr:nvGraphicFramePr><xdr:cNvPr id="${k + 2}" name="グラフ ${k + 1}"/><xdr:cNvGraphicFramePr/></xdr:nvGraphicFramePr>` +
+        `<xdr:xfrm><a:off x="0" y="0"/><a:ext cx="0" cy="0"/></xdr:xfrm><a:graphic><a:graphicData uri="${NS_C}"><c:chart xmlns:c="${NS_C}" r:id="rId${k + 1}"/></a:graphicData></a:graphic></xdr:graphicFrame><xdr:clientData/></xdr:twoCellAnchor>`;
+    }).join("");
+
+    const OX = "application/vnd.openxmlformats-officedocument.";
+    const files = [
+      ["[Content_Types].xml", XML_HEAD + '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">' +
+        '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/>' +
+        `<Override PartName="/xl/workbook.xml" ContentType="${OX}spreadsheetml.sheet.main+xml"/>` +
+        `<Override PartName="/xl/worksheets/sheet1.xml" ContentType="${OX}spreadsheetml.worksheet+xml"/>` +
+        `<Override PartName="/xl/styles.xml" ContentType="${OX}spreadsheetml.styles+xml"/>` +
+        `<Override PartName="/xl/sharedStrings.xml" ContentType="${OX}spreadsheetml.sharedStrings+xml"/>` +
+        (charts.length ? `<Override PartName="/xl/drawings/drawing1.xml" ContentType="${OX}drawing+xml"/>` : "") +
+        charts.map((_, k) => `<Override PartName="/xl/charts/chart${k + 1}.xml" ContentType="${OX}drawingml.chart+xml"/>`).join("") +
+        "</Types>"],
+      ["_rels/.rels", relsXml([["rId1", "officeDocument", "xl/workbook.xml"]])],
+      ["xl/workbook.xml", XML_HEAD + `<workbook xmlns="${NS_MAIN}" xmlns:r="${NS_R}"><sheets><sheet name="${sheetName}" sheetId="1" r:id="rId1"/></sheets></workbook>`],
+      ["xl/_rels/workbook.xml.rels", relsXml([["rId1", "worksheet", "worksheets/sheet1.xml"], ["rId2", "styles", "styles.xml"], ["rId3", "sharedStrings", "sharedStrings.xml"]])],
+      ["xl/styles.xml", XML_HEAD + `<styleSheet xmlns="${NS_MAIN}"><fonts count="1"><font><sz val="11"/><name val="Calibri"/></font></fonts>` +
+        '<fills count="2"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill></fills>' +
+        '<borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders>' +
+        '<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>' +
+        '<cellXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/></cellXfs></styleSheet>'],
+      ["xl/worksheets/sheet1.xml", XML_HEAD + `<worksheet xmlns="${NS_MAIN}" xmlns:r="${NS_R}"><cols><col min="1" max="${header.length}" width="15" customWidth="1"/></cols>` +
+        `<sheetData>${sheetRows}</sheetData>${charts.length ? '<drawing r:id="rId1"/>' : ""}</worksheet>`],
+      // 共有文字列は表を組み立てたあとで（ここで文字列が出そろう）
+      ["xl/sharedStrings.xml", XML_HEAD + `<sst xmlns="${NS_MAIN}" count="${strings.length}" uniqueCount="${strings.length}">` +
+        strings.map(s => `<si><t>${xmlEsc(s)}</t></si>`).join("") + "</sst>"],
+    ];
+    if (charts.length) {
+      files.push(["xl/worksheets/_rels/sheet1.xml.rels", relsXml([["rId1", "drawing", "../drawings/drawing1.xml"]])]);
+      files.push(["xl/drawings/drawing1.xml", XML_HEAD + `<xdr:wsDr xmlns:xdr="http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing" xmlns:a="${NS_A}" xmlns:r="${NS_R}">${anchors}</xdr:wsDr>`]);
+      files.push(["xl/drawings/_rels/drawing1.xml.rels", relsXml(charts.map((_, k) => [`rId${k + 1}`, "chart", `../charts/chart${k + 1}.xml`]))]);
+      charts.forEach((ch, k) => files.push([`xl/charts/chart${k + 1}.xml`, chartXml(ch, sheetName, rows, forNumbers)]));
+    }
+    return zipBlob(files, OX + "spreadsheetml.sheet");
+  }
+
+  // ---------- 保存ボタン ----------
+  // getData() は { base, header, rows, charts, series, meta } を返す（データが無ければ null）
+  //   series: JSON 用 [{ name, sym, sub, unit, t, y, dt }]（lab の datafit・repeat でも読める形式 lab-data）
+  function wireExport(root, getData, source) {
+    const msg = root.querySelector(".export-msg");
+    const say = (text, kind) => { msg.textContent = text; msg.className = "export-msg" + (kind ? " " + kind : ""); };
+    const where = "iPad では「ファイル」App の「ダウンロード」に入ります。";
+    root.querySelectorAll("[data-export]").forEach(btn => btn.addEventListener("click", async () => {
+      const d = getData();
+      if (!d || !d.rows.length) { say("保存するデータがありません。先に測定してください。", "err"); return; }
+      const kind = btn.dataset.export;
+      try {
+        if (kind === "xlsx" || kind === "numbers") {
+          const fn = `${d.base}_${stamp()}${kind === "numbers" ? "_Numbers" : ""}.xlsx`;
+          saveBlob(buildXlsx(d.header, d.rows, d.charts, kind === "numbers"), fn);
+          say(`${fn} を保存しました（表とグラフ入り）。${where}`, "ok");
+        } else if (kind === "json") {
+          const doc = { format: "lab-data", version: 1, source, date: new Date().toISOString(), ...(d.meta ? { meta: d.meta } : {}), series: d.series };
+          const fn = `${d.base}_${stamp()}.json`;
+          saveBlob(new Blob([JSON.stringify(doc)], { type: "application/json" }), fn);
+          say(`${fn} を保存しました。${where}`, "ok");
+        } else if (kind === "tsv") {
+          const text = (d.tsv || [d.header, ...d.rows].map(r => r.map(v => v === null || v === undefined ? "" : v).join("\t")).join("\n")) + "\n";
+          const ok = await copyText(text);
+          say(ok ? "表をコピーしました。スプレッドシートのセルに貼り付けてください。" : "コピーできませんでした。", ok ? "ok" : "err");
+        }
+      } catch (e) {
+        console.error(e);
+        say("保存できませんでした。", "err");
+      }
+    }));
+  }
+
+  return { drawPlot, xFromEvent, nearest, wireExport, buildXlsx, stamp, copyText, extent };
+})();
+
+</script>
+<script>
+(() => {
+  "use strict";
+
+  const TIME_WINDOW = 5.0;          // グラフに出す時間の幅 [s]
+  const CALIB_SAMPLES = 30;         // 静止させて重力の向きを求めるサンプル数（202512 版と同じ）
+  const MAX_TABLE_ROWS = 400;
+  const MAX_LOG = 60 * 60 * 10;     // 保存用に残す点の上限（60 Hz で約 10 分）
+  const COLORS = { x: "#d1495b", y: "#3f8f5a", z: "#3b6fb6" };
+
+  const $ = id => document.getElementById(id);
+  const statusEl = $("status"), msgEl = $("msg");
+  const mode5 = $("mode5"), modeCont = $("modeCont");
+  const startBtn = $("startBtn"), stopBtn = $("stopBtn"), clearBtn = $("clearBtn");
+  const rangeSlider = $("rangeSlider"), rangeLabel = $("rangeLabel");
+  const canvas = $("chart"), tableBody = $("tableBody"), tableWrap = $("tableWrap");
+
+  let running = false, permissionGranted = false, calibrated = false;
+  let captureStartMs = null;        // キャリブ完了（＝ t = 0）の時刻
+  let stopTimer = null, tableTimer = null;
+  let gX = 0, gY = 0, gZ = 0, calibCount = 0, sumX = 0, sumY = 0, sumZ = 0;
+  let log = [];                     // { t, x, y, z }（t は captureStartMs からの秒）
+  let last = null;
+  let plotEnd = null;               // 停止後に表示を固定する右端 [s]
+  let maxAbs = parseFloat(rangeSlider.value);
+
+  function setStatus(text, kind) { statusEl.textContent = text; statusEl.className = "status" + (kind ? " " + kind : ""); }
+  function lockUI(locked) {
+    startBtn.disabled = locked;
+    mode5.disabled = locked;
+    modeCont.disabled = locked;
+    stopBtn.disabled = !locked;
+  }
+
+  rangeSlider.addEventListener("input", () => {
+    maxAbs = parseFloat(rangeSlider.value);
+    rangeLabel.textContent = maxAbs.toFixed(1);
+    draw();
+  });
+
+  async function ensurePermission() {
+    if (permissionGranted) return true;
+    if (typeof DeviceMotionEvent !== "undefined" && typeof DeviceMotionEvent.requestPermission === "function") {
+      try { permissionGranted = (await DeviceMotionEvent.requestPermission()) === "granted"; }
+      catch (e) { permissionGranted = false; }
+    } else {
+      permissionGranted = true;
+    }
+    return permissionGranted;
+  }
+
+  function clearAll() {
+    running = false;
+    calibrated = false;
+    captureStartMs = null;
+    gX = gY = gZ = 0; calibCount = 0; sumX = sumY = sumZ = 0;
+    log = [];
+    last = null;
+    plotEnd = null;
+    clearTimeout(stopTimer); stopTimer = null;
+    clearInterval(tableTimer); tableTimer = null;
+    tableBody.innerHTML = "";
+    ["vx", "vy", "vz"].forEach(id => { $(id).innerHTML = "—<small>m/s²</small>"; });
+    lockUI(false);
+    draw();
+  }
+
+  startBtn.addEventListener("click", async () => {
+    if (running) return;
+    if (!(await ensurePermission())) {
+      msgEl.textContent = "センサーの使用が許可されませんでした。Safari の設定（モーションと画面の向きのアクセス）を確認してください。";
+      return;
+    }
+    clearAll();
+    running = true;
+    lockUI(true);
+    setStatus("重力の向きを合わせています…", "live");
+    msgEl.textContent = "スマホを机の上で静止させてください（約 1 秒）。";
+    tableTimer = setInterval(() => { if (running && calibrated && last) addRow(); }, 100);
+  });
+
+  stopBtn.addEventListener("click", () => stopRunning("停止しました"));
+  clearBtn.addEventListener("click", () => {
+    clearAll();
+    setStatus("待機中");
+    msgEl.textContent = "「計測開始」を押してください。";
+  });
+
+  function stopRunning(text) {
+    running = false;
+    plotEnd = mode5.checked && captureStartMs !== null ? TIME_WINDOW : (last ? last.t : 0);
+    clearInterval(tableTimer); tableTimer = null;
+    clearTimeout(stopTimer); stopTimer = null;
+    setStatus(text, "done");
+    msgEl.textContent = log.length ? `${log.length} 点を記録しました。下の「データを保存する」から保存できます。` : "データがありません。";
+    lockUI(false);
+    draw();
+  }
+
+  window.addEventListener("devicemotion", e => {
+    if (!permissionGranted || !running) return;
+    const g = e.accelerationIncludingGravity;
+    if (!g) return;
+    const ax0 = g.x || 0, ay0 = g.y || 0, az0 = g.z || 0;
+
+    if (!calibrated) {
+      calibCount++;
+      sumX += ax0; sumY += ay0; sumZ += az0;
+      if (calibCount >= CALIB_SAMPLES) {
+        const mx = sumX / calibCount, my = sumY / calibCount, mz = sumZ / calibCount;
+        const len = Math.hypot(mx, my, mz) || 9.8;
+        gX = 9.8 * mx / len; gY = 9.8 * my / len; gZ = 9.8 * mz / len;
+        calibrated = true;
+        captureStartMs = performance.now();
+        if (mode5.checked) {
+          setStatus("計測中（5 秒）", "live");
+          msgEl.textContent = "ここから 5 秒間測ります。";
+          stopTimer = setTimeout(() => stopRunning("5 秒の測定が終わりました"), TIME_WINDOW * 1000);
+        } else {
+          setStatus("計測中（停止を押すまで）", "live");
+          msgEl.textContent = "スマホを持って動かしてください。止めるときは「停止」。";
+        }
+      }
+      return;
+    }
+
+    const t = (performance.now() - captureStartMs) / 1000;
+    if (mode5.checked && t > TIME_WINDOW) return;
+    // 重力を引き，右・上・手前が正になるように符号を反転（202512 版と同じ）
+    const p = { t, x: -(ax0 - gX), y: -(ay0 - gY), z: -(az0 - gZ) };
+    last = p;
+    log.push(p);
+    if (log.length > MAX_LOG) log.shift();
+    $("vx").innerHTML = `${p.x.toFixed(2)}<small>m/s²</small>`;
+    $("vy").innerHTML = `${p.y.toFixed(2)}<small>m/s²</small>`;
+    $("vz").innerHTML = `${p.z.toFixed(2)}<small>m/s²</small>`;
+    draw();
+  });
+
+  function addRow() {
+    const p = last;
+    const tr = document.createElement("tr");
+    tr.innerHTML = `<td>${p.t.toFixed(1)}</td><td>${p.x.toFixed(2)}</td><td>${p.y.toFixed(2)}</td><td>${p.z.toFixed(2)}</td><td>${Math.hypot(p.x, p.y, p.z).toFixed(2)}</td>`;
+    tableBody.appendChild(tr);
+    while (tableBody.rows.length > MAX_TABLE_ROWS) tableBody.deleteRow(0);
+    tableWrap.scrollTop = tableWrap.scrollHeight;
+  }
+
+  let rafPending = false;
+  function draw() {
+    if (rafPending) return;
+    rafPending = true;
+    requestAnimationFrame(() => { rafPending = false; drawNow(); });
+  }
+  function drawNow() {
+    let end;
+    if (plotEnd !== null) end = Math.max(plotEnd, TIME_WINDOW);
+    else if (mode5.checked || !last) end = TIME_WINDOW;
+    else end = Math.max(TIME_WINDOW, last.t);
+    const start = end - TIME_WINDOW;
+    const vis = log.filter(p => p.t >= start && p.t <= end);
+    Lab.drawPlot(canvas, {
+      series: ["x", "y", "z"].map(k => ({ pts: vis.map(p => ({ x: p.t, y: p[k] })), color: COLORS[k], mode: "line", width: 2 })),
+      xRange: [start, end],
+      yRange: [-maxAbs, maxAbs],
+      xLabel: { sym: "t", unit: "s" },
+      yLabel: { sym: "a", unit: "m/s²" },
+    });
+  }
+  window.addEventListener("resize", draw);
+
+  Lab.wireExport($("exportCard"), () => {
+    if (!log.length) return null;
+    const r4 = v => Number(v.toFixed(4));
+    const t = log.map(p => r4(p.t));
+    const ax = ["x", "y", "z"];
+    return {
+      base: "加速度xyz",
+      header: ["t [s]", "a_x [m/s²]", "a_y [m/s²]", "a_z [m/s²]", "|a| [m/s²]"],
+      rows: log.map(p => [r4(p.t), r4(p.x), r4(p.y), r4(p.z), r4(Math.hypot(p.x, p.y, p.z))]),
+      charts: [{
+        title: "加速度 x・y・z",
+        x: { col: 0, sym: "t", unit: "s" },
+        y: { sym: "a", unit: "m/s²" },
+        series: ax.map((k, i) => ({ name: k, col: i + 1, color: COLORS[k] })),
+        line: true, noMarker: true,
+      }],
+      series: [
+        ...ax.map(k => ({ name: `加速度 ${k}`, sym: "a", sub: k, unit: "m/s^2", dt: null, t, y: log.map(p => r4(p[k])) })),
+        { name: "加速度の大きさ", sym: "|a|", sub: "", unit: "m/s^2", dt: null, t, y: log.map(p => r4(Math.hypot(p.x, p.y, p.z))) },
+      ],
+    };
+  }, "acceleration202611");
+
+  draw();
+})();
+</script>
+</body>
+</html>

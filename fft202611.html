@@ -1,0 +1,855 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>FFT ピーク周波数と音名</title>
+<style>
+  /* ---------- 共通デザイン（202611 版の計測ツール） ---------- */
+  :root {
+    --bg: #faf9f5;
+    --surface: #ffffff;
+    --surface-2: #f4f3ee;
+    --ink: #141413;
+    --ink-2: #3d3d3a;
+    --muted: #73726c;
+    --line: #e8e6dc;
+    --line-strong: #d6d3c7;
+    --accent: #d97757;
+    --accent-ink: #a8502f;
+    --accent-soft: #f7ebe4;
+    --ok: #3f7d4e;
+    --warn: #b4541f;
+    --radius: 14px;
+    --serif: "Hiragino Mincho ProN", "Yu Mincho", "YuMincho", Georgia, serif;
+    --sans: "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Noto Sans JP", "Yu Gothic UI", Meiryo, system-ui, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--sans);
+    font-feature-settings: "palt";
+    line-height: 1.6;
+  }
+  .page { max-width: 1040px; margin: 0 auto; padding: 28px 16px 64px; }
+
+  .hero { margin-bottom: 22px; }
+  .eyebrow {
+    font-size: 0.78rem;
+    letter-spacing: 0.14em;
+    color: var(--accent-ink);
+    font-weight: 600;
+    margin-bottom: 6px;
+  }
+  .hero h1 {
+    font-family: var(--serif);
+    font-weight: 600;
+    font-size: clamp(1.6rem, 4vw, 2.2rem);
+    line-height: 1.3;
+    margin: 0 0 8px;
+    letter-spacing: 0.02em;
+  }
+  .lede { margin: 0; color: var(--ink-2); max-width: 46em; }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 18px 18px 20px;
+    margin-bottom: 16px;
+  }
+  .card-title {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    font-size: 1.02rem;
+    font-weight: 700;
+    margin: 0 0 12px;
+  }
+  .card-title .step {
+    font-family: var(--serif);
+    font-size: 0.82rem;
+    color: var(--accent-ink);
+    background: var(--accent-soft);
+    border-radius: 999px;
+    padding: 1px 10px;
+    font-weight: 600;
+  }
+  .grid-2 { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; }
+  .grid-3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+  @media (max-width: 760px) {
+    .grid-2, .grid-3 { grid-template-columns: minmax(0, 1fr); }
+  }
+
+  .btn-row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+  .btn {
+    appearance: none;
+    font: inherit;
+    font-size: 0.98rem;
+    font-weight: 600;
+    padding: 10px 18px;
+    border-radius: 10px;
+    border: 1px solid var(--line-strong);
+    background: var(--surface);
+    color: var(--ink);
+    cursor: pointer;
+    transition: background 0.15s ease, border-color 0.15s ease, transform 0.05s ease;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .btn:hover:not(:disabled) { background: var(--surface-2); }
+  .btn:active:not(:disabled) { transform: translateY(1px); }
+  .btn:disabled { opacity: 0.45; cursor: default; }
+  .btn.primary { background: var(--ink); border-color: var(--ink); color: #fff; }
+  .btn.primary:hover:not(:disabled) { background: #2b2b29; }
+  .btn.accent { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .btn.accent:hover:not(:disabled) { background: #c96a4b; }
+  .btn.ghost { background: transparent; }
+
+  .status {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.92rem;
+    color: var(--ink-2);
+    background: var(--surface-2);
+    border-radius: 999px;
+    padding: 5px 14px;
+  }
+  .status::before {
+    content: "";
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--line-strong);
+  }
+  .status.live::before { background: var(--accent); animation: pulse 1.2s ease-in-out infinite; }
+  .status.done::before { background: var(--ok); }
+  @keyframes pulse { 50% { opacity: 0.3; } }
+
+  .stat {
+    background: var(--surface-2);
+    border-radius: 12px;
+    padding: 12px 14px;
+  }
+  .stat-label { font-size: 0.82rem; color: var(--muted); margin-bottom: 2px; }
+  .stat-value {
+    font-size: clamp(1.5rem, 4vw, 2rem);
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    line-height: 1.2;
+  }
+  .stat-value small { font-size: 0.55em; font-weight: 500; color: var(--muted); margin-left: 4px; }
+
+  .result {
+    font-family: var(--serif);
+    font-size: clamp(1.4rem, 4vw, 2rem);
+    font-weight: 600;
+    color: var(--ink);
+    margin: 4px 0 2px;
+    font-variant-numeric: tabular-nums;
+  }
+  .result-sub { color: var(--muted); font-size: 0.92rem; }
+
+  .chart { width: 100%; height: 320px; display: block; touch-action: none; }
+  .chart-box { border: 1px solid var(--line); border-radius: 12px; padding: 6px; background: var(--surface); }
+  .chart-info { font-size: 0.88rem; color: var(--muted); margin-top: 8px; min-height: 1.4em; font-variant-numeric: tabular-nums; }
+
+  .note { font-size: 0.88rem; color: var(--muted); margin: 10px 0 0; line-height: 1.7; }
+  .howto { margin: 0; padding-left: 1.3em; color: var(--ink-2); font-size: 0.94rem; line-height: 1.8; }
+
+  .q { font-family: "Times New Roman", Times, serif; font-style: italic; font-size: 1.08em; }
+
+  .field { display: flex; flex-direction: column; gap: 4px; }
+  .field label { font-size: 0.84rem; color: var(--muted); font-weight: 600; }
+  .field input[type="number"], .field input[type="text"] {
+    font: inherit;
+    padding: 9px 12px;
+    border: 1px solid var(--line-strong);
+    border-radius: 10px;
+    background: var(--surface);
+    color: var(--ink);
+    width: 100%;
+  }
+  input:focus-visible, .btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  input[type="range"] { accent-color: var(--accent); }
+
+  .seg { display: inline-flex; background: var(--surface-2); border-radius: 10px; padding: 3px; gap: 2px; }
+  .seg label { display: inline-flex; }
+  .seg input { position: absolute; opacity: 0; pointer-events: none; }
+  .seg span {
+    padding: 7px 14px; border-radius: 8px; font-size: 0.92rem; font-weight: 600; color: var(--muted); cursor: pointer;
+  }
+  .seg input:checked + span { background: var(--surface); color: var(--ink); box-shadow: 0 1px 2px rgba(20, 20, 19, 0.12); }
+  .seg input:disabled + span { opacity: 0.5; cursor: default; }
+
+  .table-wrap { max-height: 300px; overflow: auto; border: 1px solid var(--line); border-radius: 12px; }
+  table.data { width: 100%; border-collapse: collapse; font-size: 0.88rem; font-variant-numeric: tabular-nums; }
+  table.data th, table.data td { padding: 6px 10px; text-align: right; border-bottom: 1px solid var(--line); white-space: nowrap; }
+  table.data th { position: sticky; top: 0; background: var(--surface-2); color: var(--ink-2); font-weight: 600; z-index: 1; }
+  table.data td:first-child, table.data th:first-child { text-align: center; }
+  table.data tbody tr:last-child td { border-bottom: none; }
+
+  .export .btn { font-size: 0.92rem; padding: 9px 14px; }
+  .export-msg { font-size: 0.88rem; color: var(--muted); margin-top: 10px; min-height: 1.4em; }
+  .export-msg.ok { color: var(--ok); }
+  .export-msg.err { color: var(--warn); }
+
+  .site-foot { text-align: center; font-size: 0.8rem; color: var(--muted); margin-top: 28px; }
+</style>
+</head>
+<body>
+  <main class="page">
+    <header class="hero">
+      <div class="eyebrow">マイク · 周波数解析</div>
+      <h1>FFT ピーク周波数と音名</h1>
+      <p class="lede">マイクで拾った音を周波数解析して，いちばん強い周波数と，その音名（ドレミ）を 1 秒ごとに記録します。</p>
+    </header>
+
+    <section class="card">
+      <h2 class="card-title"><span class="step">1</span>測定する</h2>
+      <div class="btn-row">
+        <button class="btn accent" id="startBtn" type="button">▶ 測定開始</button>
+        <button class="btn" id="stopBtn" type="button" disabled>停止</button>
+        <button class="btn ghost" id="clearBtn" type="button">記録を消す</button>
+        <span class="status" id="status">待機中</span>
+      </div>
+      <p class="note">マイクの音を 1 秒ごとに周波数解析し，いちばん強い周波数（0〜2000 Hz の範囲）と，その音名（ドレミ）を記録します。</p>
+    </section>
+
+    <section class="card">
+      <h2 class="card-title"><span class="step">2</span>いまの音</h2>
+      <div class="grid-2">
+        <div class="stat"><div class="stat-label">ピーク周波数 <span class="q">f</span></div><div class="stat-value" id="freqView">—<small>Hz</small></div></div>
+        <div class="stat"><div class="stat-label">音名</div><div class="stat-value" id="noteView">—</div></div>
+      </div>
+      <div class="chart-box" style="margin-top:14px"><canvas class="chart" id="spectrum" style="height:260px"></canvas></div>
+      <p class="note">縦の線が補間したピークの位置です。</p>
+    </section>
+
+    <section class="card">
+      <h2 class="card-title"><span class="step">3</span>記録（新しいものが上）</h2>
+      <div class="table-wrap">
+        <table class="data">
+          <thead><tr><th>時刻</th><th><span class="q">t</span> [s]</th><th>ピーク周波数 [Hz]</th><th>音名</th></tr></thead>
+          <tbody id="logTable"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="card export" id="exportCard">
+      <h2 class="card-title"><span class="step">保存</span>データを保存する</h2>
+      <div class="btn-row">
+        <button class="btn" type="button" data-export="xlsx">Excel で保存</button>
+        <button class="btn" type="button" data-export="numbers">Numbers 用に保存</button>
+        <button class="btn" type="button" data-export="json">JSON で保存</button>
+        <button class="btn ghost" type="button" data-export="tsv">表をコピー（TSV）</button>
+      </div>
+      <p class="note">Excel・Numbers 用は表とグラフが入ったファイル（.xlsx）です。iPad の Numbers で開くときは「Numbers 用」を使うと，グラフの軸の見出しが正しく表示されます。JSON は「散布図＆フィッティングツール」「繰り返し測定の比較ツール」でそのまま読み込めます。</p>
+      <p class="export-msg"></p>
+    </section>
+
+    <p class="site-foot">物理実験ツール · 2026年11月版</p>
+  </main>
+
+<script>
+// ---------- 共通部品（202611 版の計測ツール）：グラフ描画と保存 ----------
+// 外部ライブラリは使わない（オフラインの iPad でも動くように）
+const Lab = (() => {
+  "use strict";
+
+  const COL = {
+    plot: "#ffffff",
+    grid: "#efede6",
+    axis: "#bfbcb0",
+    zero: "#9a978c",
+    text: "#73726c",
+    ink: "#141413",
+  };
+
+  // ---------- 数値・目盛り ----------
+
+  function niceStep(range, count) {
+    const raw = range / Math.max(1, count);
+    const mag = Math.pow(10, Math.floor(Math.log10(raw)));
+    const f = raw / mag;
+    return (f < 1.5 ? 1 : f < 3 ? 2 : f < 7 ? 5 : 10) * mag;
+  }
+
+  function niceTicks(min, max, count) {
+    const step = niceStep(max - min, count);
+    const start = Math.floor(min / step + 1e-9) * step;
+    const end = Math.ceil(max / step - 1e-9) * step;
+    const ticks = [];
+    for (let v = start; v <= end + step * 1e-6; v += step) ticks.push(Math.abs(v) < step * 1e-9 ? 0 : v);
+    return { ticks, step };
+  }
+
+  function decimalsFor(step) {
+    return Math.max(0, Math.min(6, -Math.floor(Math.log10(step) + 1e-9)));
+  }
+
+  function extent(values) {
+    const v = values.filter(Number.isFinite);
+    if (!v.length) return [0, 1];
+    let lo = Math.min(...v), hi = Math.max(...v);
+    if (hi - lo < 1e-12) { lo -= 1; hi += 1; }
+    return [lo, hi];
+  }
+
+  // ---------- グラフ ----------
+
+  // 軸の見出し：量の記号は Times New Roman の斜体，添字は小さく，単位は立体
+  function drawAxisLabel(ctx, label, x, y, rotate) {
+    if (!label) return;
+    const size = 15;
+    const parts = [];
+    if (label.sym) parts.push({ text: label.sym, font: `italic ${size}px "Times New Roman", Times, serif`, dy: 0 });
+    if (label.sub) parts.push({ text: label.sub, font: `italic ${Math.round(size * 0.72)}px "Times New Roman", Times, serif`, dy: size * 0.28 });
+    if (label.unit) parts.push({ text: (label.sym ? " " : "") + `[${label.unit}]`, font: `${size}px "Times New Roman", Times, serif`, dy: 0 });
+    if (label.text) parts.push({ text: label.text, font: `${size - 2}px ${getComputedStyle(document.body).fontFamily}`, dy: 0 });
+    ctx.save();
+    ctx.translate(x, y);
+    if (rotate) ctx.rotate(-Math.PI / 2);
+    let total = 0;
+    parts.forEach(p => { ctx.font = p.font; p.w = ctx.measureText(p.text).width; total += p.w; });
+    let cx = -total / 2;
+    ctx.fillStyle = COL.ink;
+    ctx.textBaseline = "middle";
+    ctx.textAlign = "left";
+    parts.forEach(p => { ctx.font = p.font; ctx.fillText(p.text, cx, p.dy); cx += p.w; });
+    ctx.restore();
+  }
+
+  // o = {
+  //   series: [{ pts: [{x, y}], color, mode: "line" | "dot" | "both", width, radius }],
+  //   xRange, yRange（省略で自動）, includeZeroY, xLabel / yLabel: { sym, sub, unit, text },
+  //   refLines: [{ y, color, dash, label }], marker: { x, y, color }
+  // }
+  // 戻り値はタップした位置から値を求めるための座標変換
+  function drawPlot(canvas, o) {
+    const dpr = window.devicePixelRatio || 1;
+    const cssW = canvas.clientWidth || 600, cssH = canvas.clientHeight || 300;
+    const pxW = Math.round(cssW * dpr), pxH = Math.round(cssH * dpr);
+    if (canvas.width !== pxW || canvas.height !== pxH) { canvas.width = pxW; canvas.height = pxH; }
+    const ctx = canvas.getContext("2d");
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, cssW, cssH);
+
+    const m = { l: 62, r: 14, t: 12, b: 50 };
+    const pw = Math.max(10, cssW - m.l - m.r), ph = Math.max(10, cssH - m.t - m.b);
+    const all = o.series.flatMap(s => s.pts);
+
+    let [x0, x1] = o.xRange || extent(all.map(p => p.x));
+    let [y0, y1] = o.yRange || extent(all.map(p => p.y));
+    if (!o.yRange && o.includeZeroY) { y0 = Math.min(0, y0); y1 = Math.max(0, y1); }
+    const xt = niceTicks(x0, x1, Math.max(3, Math.round(pw / 90)));
+    const yt = niceTicks(y0, y1, Math.max(3, Math.round(ph / 55)));
+    if (!o.xRange) { x0 = xt.ticks[0]; x1 = xt.ticks[xt.ticks.length - 1]; }
+    if (!o.yRange) { y0 = yt.ticks[0]; y1 = yt.ticks[yt.ticks.length - 1]; }
+
+    const X = x => m.l + (x - x0) / (x1 - x0) * pw;
+    const Y = y => m.t + ph - (y - y0) / (y1 - y0) * ph;
+
+    ctx.fillStyle = COL.plot;
+    ctx.fillRect(m.l, m.t, pw, ph);
+
+    // 目盛り線と数値
+    ctx.font = `12px ${getComputedStyle(document.body).fontFamily}`;
+    ctx.fillStyle = COL.text;
+    ctx.lineWidth = 1;
+    const xd = decimalsFor(xt.step), yd = decimalsFor(yt.step);
+    ctx.textAlign = "center";
+    ctx.textBaseline = "top";
+    xt.ticks.forEach(v => {
+      if (v < x0 - 1e-9 || v > x1 + 1e-9) return;
+      const px = Math.round(X(v)) + 0.5;
+      ctx.strokeStyle = COL.grid;
+      ctx.beginPath(); ctx.moveTo(px, m.t); ctx.lineTo(px, m.t + ph); ctx.stroke();
+      ctx.fillText(v.toFixed(xd), px, m.t + ph + 6);
+    });
+    ctx.textAlign = "right";
+    ctx.textBaseline = "middle";
+    yt.ticks.forEach(v => {
+      if (v < y0 - 1e-9 || v > y1 + 1e-9) return;
+      const py = Math.round(Y(v)) + 0.5;
+      ctx.strokeStyle = COL.grid;
+      ctx.beginPath(); ctx.moveTo(m.l, py); ctx.lineTo(m.l + pw, py); ctx.stroke();
+      ctx.fillText(v.toFixed(yd), m.l - 8, py);
+    });
+    if (y0 < 0 && y1 > 0) {
+      const py = Math.round(Y(0)) + 0.5;
+      ctx.strokeStyle = COL.zero;
+      ctx.beginPath(); ctx.moveTo(m.l, py); ctx.lineTo(m.l + pw, py); ctx.stroke();
+    }
+    ctx.strokeStyle = COL.axis;
+    ctx.strokeRect(m.l + 0.5, m.t + 0.5, pw - 1, ph - 1);
+
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(m.l, m.t, pw, ph);
+    ctx.clip();
+
+    (o.refLines || []).forEach(r => {
+      const py = Y(r.y);
+      ctx.strokeStyle = r.color || COL.ink;
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash(r.dash || [6, 4]);
+      ctx.beginPath(); ctx.moveTo(m.l, py); ctx.lineTo(m.l + pw, py); ctx.stroke();
+      ctx.setLineDash([]);
+      if (r.label) {
+        ctx.fillStyle = r.color || COL.ink;
+        ctx.font = `12px ${getComputedStyle(document.body).fontFamily}`;
+        ctx.textAlign = "right";
+        ctx.textBaseline = "bottom";
+        ctx.fillText(r.label, m.l + pw - 6, py - 3);
+      }
+    });
+
+    o.series.forEach(s => {
+      const pts = s.pts.filter(p => Number.isFinite(p.x) && Number.isFinite(p.y));
+      if (!pts.length) return;
+      const mode = s.mode || "line";
+      if (mode === "line" || mode === "both") {
+        ctx.strokeStyle = s.color;
+        ctx.lineWidth = s.width || 2;
+        ctx.lineJoin = "round";
+        ctx.beginPath();
+        pts.forEach((p, i) => (i ? ctx.lineTo(X(p.x), Y(p.y)) : ctx.moveTo(X(p.x), Y(p.y))));
+        ctx.stroke();
+      }
+      if (mode === "dot" || mode === "both") {
+        ctx.fillStyle = s.color;
+        const r = s.radius || 3.5;
+        pts.forEach(p => { ctx.beginPath(); ctx.arc(X(p.x), Y(p.y), r, 0, Math.PI * 2); ctx.fill(); });
+      }
+    });
+
+    if (o.marker && Number.isFinite(o.marker.x) && Number.isFinite(o.marker.y)) {
+      const mx = X(o.marker.x), my = Y(o.marker.y);
+      ctx.strokeStyle = "rgba(20,20,19,0.25)";
+      ctx.setLineDash([3, 3]);
+      ctx.beginPath(); ctx.moveTo(mx, m.t); ctx.lineTo(mx, m.t + ph); ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillStyle = "#fff";
+      ctx.strokeStyle = o.marker.color || COL.ink;
+      ctx.lineWidth = 2.5;
+      ctx.beginPath(); ctx.arc(mx, my, 6, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+    }
+    ctx.restore();
+
+    drawAxisLabel(ctx, o.xLabel, m.l + pw / 2, cssH - 12, false);
+    drawAxisLabel(ctx, o.yLabel, 16, m.t + ph / 2, true);
+
+    return { X, Y, x0, x1, y0, y1, m, pw, ph, xAt: px => x0 + (px - m.l) / pw * (x1 - x0) };
+  }
+
+  // タップ・クリックした位置の x（グラフの値）を返す
+  function xFromEvent(canvas, geom, e) {
+    if (!geom) return null;
+    const rect = canvas.getBoundingClientRect();
+    const p = e.touches ? e.touches[0] : e;
+    return geom.xAt(p.clientX - rect.left);
+  }
+
+  function nearest(pts, x) {
+    let best = null, bd = Infinity;
+    pts.forEach(p => { const d = Math.abs(p.x - x); if (d < bd) { bd = d; best = p; } });
+    return best;
+  }
+
+  // ---------- 保存 ----------
+
+  function stamp() {
+    const d = new Date(), p = n => String(n).padStart(2, "0");
+    return `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}_${p(d.getHours())}${p(d.getMinutes())}`;
+  }
+
+  function saveBlob(blob, filename) {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
+  }
+
+  async function copyText(text) {
+    try {
+      await navigator.clipboard.writeText(text);
+      return true;
+    } catch (e) {
+      const ta = document.createElement("textarea");
+      ta.value = text;
+      ta.style.position = "fixed";
+      ta.style.opacity = "0";
+      document.body.appendChild(ta);
+      ta.select();
+      ta.setSelectionRange(0, text.length);
+      let ok = false;
+      try { ok = document.execCommand("copy"); } catch (e2) { ok = false; }
+      ta.remove();
+      return ok;
+    }
+  }
+
+  // ---------- .xlsx（XML を zip にまとめたもの） ----------
+
+  let crcTable = null;
+  function crc32(bytes) {
+    if (!crcTable) {
+      crcTable = Array.from({ length: 256 }, (_, n) => {
+        for (let k = 0; k < 8; k++) n = n & 1 ? 0xEDB88320 ^ (n >>> 1) : n >>> 1;
+        return n >>> 0;
+      });
+    }
+    let c = -1;
+    for (let i = 0; i < bytes.length; i++) c = crcTable[(c ^ bytes[i]) & 255] ^ (c >>> 8);
+    return ~c >>> 0;
+  }
+
+  // 圧縮なし（store）の zip
+  function zipBlob(files, type) {
+    const enc = new TextEncoder();
+    const parts = [], central = [];
+    const d = new Date();
+    const dosDate = (d.getFullYear() - 1980) << 9 | (d.getMonth() + 1) << 5 | d.getDate();
+    const dosTime = d.getHours() << 11 | d.getMinutes() << 5 | d.getSeconds() >> 1;
+    let offset = 0;
+    files.forEach(([name, text]) => {
+      const nb = enc.encode(name), body = enc.encode(text), crc = crc32(body);
+      const header = isCentral => {
+        const v = new DataView(new ArrayBuffer(isCentral ? 46 : 30));
+        let p = 0;
+        const u16 = x => { v.setUint16(p, x, true); p += 2; };
+        const u32 = x => { v.setUint32(p, x, true); p += 4; };
+        u32(isCentral ? 0x02014b50 : 0x04034b50);
+        if (isCentral) u16(20);
+        u16(20); u16(0x800); u16(0); u16(dosTime); u16(dosDate);
+        u32(crc); u32(body.length); u32(body.length); u16(nb.length); u16(0);
+        if (isCentral) { u16(0); u16(0); u16(0); u32(0); u32(offset); }
+        return new Uint8Array(v.buffer);
+      };
+      central.push(header(true), nb);
+      parts.push(header(false), nb, body);
+      offset += 30 + nb.length + body.length;
+    });
+    const centralLen = central.reduce((s, x) => s + x.length, 0);
+    const end = new DataView(new ArrayBuffer(22));
+    end.setUint32(0, 0x06054b50, true);
+    end.setUint16(8, files.length, true);
+    end.setUint16(10, files.length, true);
+    end.setUint32(12, centralLen, true);
+    end.setUint32(16, offset, true);
+    return new Blob([...parts, ...central, new Uint8Array(end.buffer)], { type });
+  }
+
+  const xmlEsc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+  const colName = i => (i >= 26 ? String.fromCharCode(64 + Math.floor(i / 26)) : "") + String.fromCharCode(65 + i % 26);
+  const XML_HEAD = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n';
+  const NS_MAIN = "http://schemas.openxmlformats.org/spreadsheetml/2006/main";
+  const NS_R = "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
+  const NS_A = "http://schemas.openxmlformats.org/drawingml/2006/main";
+  const NS_C = "http://schemas.openxmlformats.org/drawingml/2006/chart";
+
+  // Numbers は軸の見出しの書体を 1 文字目にそろえてしまう（単位まで斜体になる）ので，
+  // Numbers 用では記号を数学用イタリックの文字（𝑡 など）にして，見出し全体は立体で書く
+  const mathItalic = s => [...s].map(c =>
+    c === "h" ? "ℎ"
+      : /[a-z]/.test(c) ? String.fromCodePoint(0x1D44E + c.charCodeAt(0) - 97)
+      : /[A-Z]/.test(c) ? String.fromCodePoint(0x1D434 + c.charCodeAt(0) - 65)
+      : c).join("");
+
+  function relsXml(list) {
+    return XML_HEAD + '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' +
+      list.map(([id, type, target]) => `<Relationship Id="${id}" Type="${NS_R}/${type}" Target="${target}"/>`).join("") +
+      "</Relationships>";
+  }
+
+  // 軸の見出し：Excel 用は記号（ラテン文字だけ）を斜体の Times New Roman，単位は立体
+  function axisTitleXml(label, rotate, forNumbers) {
+    const run = (text, italic, extra) =>
+      `<a:r><a:rPr lang="ja-JP" sz="1200" b="0" i="${italic ? 1 : 0}"${extra || ""}><a:latin typeface="Times New Roman"/></a:rPr><a:t>${xmlEsc(text)}</a:t></a:r>`;
+    const unit = label.unit ? `[${label.unit}]` : "";
+    let body;
+    if (forNumbers) {
+      body = run((label.sym ? mathItalic(label.sym) + (label.sub ? mathItalic(label.sub) : "") + (unit ? " " : "") : "") + unit + (label.text || ""), false);
+    } else {
+      body = (label.sym || "").split(/([A-Za-z]+)/).filter(Boolean).map(s => run(s, /[A-Za-z]/.test(s))).join("") +
+        (label.sub ? run(label.sub, true, ' baseline="-25000"') : "") +
+        (unit ? run((label.sym ? " " : "") + unit, false) : "") +
+        (label.text ? run(label.text, false) : "");
+    }
+    return `<c:title><c:tx><c:rich><a:bodyPr${rotate ? ' rot="-5400000" vert="horz"' : ""}/><a:p>${body}</a:p></c:rich></c:tx><c:overlay val="0"/></c:title>`;
+  }
+
+  function numRefXml(ref, vals) {
+    return `<c:numRef><c:f>${ref}</c:f><c:numCache><c:formatCode>General</c:formatCode><c:ptCount val="${vals.length}"/>` +
+      vals.map((v, i) => (typeof v === "number" && Number.isFinite(v)) ? `<c:pt idx="${i}"><c:v>${v}</c:v></c:pt>` : "").join("") +
+      "</c:numCache></c:numRef>";
+  }
+
+  // chart = { title, x: { col, sym, sub, unit }, y: { sym, sub, unit }, series: [{ name, col, color }], line }
+  function chartXml(chart, sheetName, rows, forNumbers) {
+    const n = rows.length;
+    const ref = c => `'${sheetName}'!$${colName(c)}$2:$${colName(c)}$${n + 1}`;
+    const colVals = c => rows.map(r => r[c]);
+    const xs = colVals(chart.x.col);
+    const sers = chart.series.map((s, i) => {
+      const color = s.color.replace("#", "").toUpperCase();
+      const line = chart.line
+        ? `<a:ln w="15875"><a:solidFill><a:srgbClr val="${color}"/></a:solidFill></a:ln>`
+        : `<a:ln w="12700"><a:noFill/></a:ln>`;
+      const marker = chart.line && chart.noMarker
+        ? '<c:marker><c:symbol val="none"/></c:marker>'
+        : `<c:marker><c:symbol val="circle"/><c:size val="4"/><c:spPr><a:solidFill><a:srgbClr val="${color}"/></a:solidFill><a:ln><a:noFill/></a:ln></c:spPr></c:marker>`;
+      return `<c:ser><c:idx val="${i}"/><c:order val="${i}"/><c:tx><c:v>${xmlEsc(s.name)}</c:v></c:tx><c:spPr>${line}</c:spPr>${marker}` +
+        `<c:xVal>${numRefXml(ref(chart.x.col), xs)}</c:xVal><c:yVal>${numRefXml(ref(s.col), colVals(s.col))}</c:yVal><c:smooth val="0"/></c:ser>`;
+    }).join("");
+    const axis = (id, cross, pos, label, rotate) =>
+      `<c:valAx><c:axId val="${id}"/><c:scaling><c:orientation val="minMax"/></c:scaling><c:delete val="0"/><c:axPos val="${pos}"/>` +
+      `<c:majorGridlines><c:spPr><a:ln w="6350"><a:solidFill><a:srgbClr val="E8E6DC"/></a:solidFill></a:ln></c:spPr></c:majorGridlines>` +
+      axisTitleXml(label, rotate, forNumbers) +
+      `<c:numFmt formatCode="General" sourceLinked="0"/><c:majorTickMark val="out"/><c:minorTickMark val="none"/><c:tickLblPos val="low"/>` +
+      `<c:crossAx val="${cross}"/><c:crosses val="autoZero"/><c:crossBetween val="midCat"/></c:valAx>`;
+    const legend = chart.series.length > 1 ? '<c:legend><c:legendPos val="r"/><c:overlay val="0"/></c:legend>' : "";
+    return XML_HEAD + `<c:chartSpace xmlns:c="${NS_C}" xmlns:a="${NS_A}" xmlns:r="${NS_R}"><c:roundedCorners val="0"/><c:chart>` +
+      `<c:title><c:tx><c:rich><a:bodyPr/><a:p><a:r><a:rPr lang="ja-JP" sz="1400" b="1"/><a:t>${xmlEsc(chart.title)}</a:t></a:r></a:p></c:rich></c:tx><c:overlay val="0"/></c:title><c:autoTitleDeleted val="0"/>` +
+      `<c:plotArea><c:layout/><c:scatterChart><c:scatterStyle val="lineMarker"/><c:varyColors val="0"/>${sers}<c:axId val="1"/><c:axId val="2"/></c:scatterChart>` +
+      axis(1, 2, "b", chart.x, false) + axis(2, 1, "l", chart.y, true) +
+      `</c:plotArea>${legend}<c:plotVisOnly val="1"/><c:dispBlanksAs val="gap"/></c:chart></c:chartSpace>`;
+  }
+
+  // header: 見出し，rows: 数値（空欄は null，文字列も可）の2次元配列，charts: chartXml の引数
+  function buildXlsx(header, rows, charts, forNumbers) {
+    const sheetName = "データ";
+    const strings = [], strIdx = new Map();
+    const sst = s => { if (!strIdx.has(s)) { strIdx.set(s, strings.length); strings.push(s); } return strIdx.get(s); };
+    const cell = (v, r, c) => {
+      const ref = colName(c) + (r + 1);
+      if (typeof v === "number" && Number.isFinite(v)) return `<c r="${ref}"><v>${v}</v></c>`;
+      if (typeof v === "string" && v !== "") return `<c r="${ref}" t="s"><v>${sst(v)}</v></c>`;
+      return "";
+    };
+    const sheetRows = [header, ...rows].map((row, r) =>
+      `<row r="${r + 1}">` + row.map((v, c) => cell(v, r, c)).join("") + "</row>").join("");
+
+    const W = 9, H = 20;
+    const anchors = charts.map((_, k) => {
+      const c0 = header.length + 1, r0 = 1 + k * (H + 1);
+      return `<xdr:twoCellAnchor><xdr:from><xdr:col>${c0}</xdr:col><xdr:colOff>0</xdr:colOff><xdr:row>${r0}</xdr:row><xdr:rowOff>0</xdr:rowOff></xdr:from>` +
+        `<xdr:to><xdr:col>${c0 + W}</xdr:col><xdr:colOff>0</xdr:colOff><xdr:row>${r0 + H}</xdr:row><xdr:rowOff>0</xdr:rowOff></xdr:to>` +
+        `<xdr:graphicFrame macro=""><xdr:nvGraphicFramePr><xdr:cNvPr id="${k + 2}" name="グラフ ${k + 1}"/><xdr:cNvGraphicFramePr/></xdr:nvGraphicFramePr>` +
+        `<xdr:xfrm><a:off x="0" y="0"/><a:ext cx="0" cy="0"/></xdr:xfrm><a:graphic><a:graphicData uri="${NS_C}"><c:chart xmlns:c="${NS_C}" r:id="rId${k + 1}"/></a:graphicData></a:graphic></xdr:graphicFrame><xdr:clientData/></xdr:twoCellAnchor>`;
+    }).join("");
+
+    const OX = "application/vnd.openxmlformats-officedocument.";
+    const files = [
+      ["[Content_Types].xml", XML_HEAD + '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">' +
+        '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/>' +
+        `<Override PartName="/xl/workbook.xml" ContentType="${OX}spreadsheetml.sheet.main+xml"/>` +
+        `<Override PartName="/xl/worksheets/sheet1.xml" ContentType="${OX}spreadsheetml.worksheet+xml"/>` +
+        `<Override PartName="/xl/styles.xml" ContentType="${OX}spreadsheetml.styles+xml"/>` +
+        `<Override PartName="/xl/sharedStrings.xml" ContentType="${OX}spreadsheetml.sharedStrings+xml"/>` +
+        (charts.length ? `<Override PartName="/xl/drawings/drawing1.xml" ContentType="${OX}drawing+xml"/>` : "") +
+        charts.map((_, k) => `<Override PartName="/xl/charts/chart${k + 1}.xml" ContentType="${OX}drawingml.chart+xml"/>`).join("") +
+        "</Types>"],
+      ["_rels/.rels", relsXml([["rId1", "officeDocument", "xl/workbook.xml"]])],
+      ["xl/workbook.xml", XML_HEAD + `<workbook xmlns="${NS_MAIN}" xmlns:r="${NS_R}"><sheets><sheet name="${sheetName}" sheetId="1" r:id="rId1"/></sheets></workbook>`],
+      ["xl/_rels/workbook.xml.rels", relsXml([["rId1", "worksheet", "worksheets/sheet1.xml"], ["rId2", "styles", "styles.xml"], ["rId3", "sharedStrings", "sharedStrings.xml"]])],
+      ["xl/styles.xml", XML_HEAD + `<styleSheet xmlns="${NS_MAIN}"><fonts count="1"><font><sz val="11"/><name val="Calibri"/></font></fonts>` +
+        '<fills count="2"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill></fills>' +
+        '<borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders>' +
+        '<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>' +
+        '<cellXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/></cellXfs></styleSheet>'],
+      ["xl/worksheets/sheet1.xml", XML_HEAD + `<worksheet xmlns="${NS_MAIN}" xmlns:r="${NS_R}"><cols><col min="1" max="${header.length}" width="15" customWidth="1"/></cols>` +
+        `<sheetData>${sheetRows}</sheetData>${charts.length ? '<drawing r:id="rId1"/>' : ""}</worksheet>`],
+      // 共有文字列は表を組み立てたあとで（ここで文字列が出そろう）
+      ["xl/sharedStrings.xml", XML_HEAD + `<sst xmlns="${NS_MAIN}" count="${strings.length}" uniqueCount="${strings.length}">` +
+        strings.map(s => `<si><t>${xmlEsc(s)}</t></si>`).join("") + "</sst>"],
+    ];
+    if (charts.length) {
+      files.push(["xl/worksheets/_rels/sheet1.xml.rels", relsXml([["rId1", "drawing", "../drawings/drawing1.xml"]])]);
+      files.push(["xl/drawings/drawing1.xml", XML_HEAD + `<xdr:wsDr xmlns:xdr="http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing" xmlns:a="${NS_A}" xmlns:r="${NS_R}">${anchors}</xdr:wsDr>`]);
+      files.push(["xl/drawings/_rels/drawing1.xml.rels", relsXml(charts.map((_, k) => [`rId${k + 1}`, "chart", `../charts/chart${k + 1}.xml`]))]);
+      charts.forEach((ch, k) => files.push([`xl/charts/chart${k + 1}.xml`, chartXml(ch, sheetName, rows, forNumbers)]));
+    }
+    return zipBlob(files, OX + "spreadsheetml.sheet");
+  }
+
+  // ---------- 保存ボタン ----------
+  // getData() は { base, header, rows, charts, series, meta } を返す（データが無ければ null）
+  //   series: JSON 用 [{ name, sym, sub, unit, t, y, dt }]（lab の datafit・repeat でも読める形式 lab-data）
+  function wireExport(root, getData, source) {
+    const msg = root.querySelector(".export-msg");
+    const say = (text, kind) => { msg.textContent = text; msg.className = "export-msg" + (kind ? " " + kind : ""); };
+    const where = "iPad では「ファイル」App の「ダウンロード」に入ります。";
+    root.querySelectorAll("[data-export]").forEach(btn => btn.addEventListener("click", async () => {
+      const d = getData();
+      if (!d || !d.rows.length) { say("保存するデータがありません。先に測定してください。", "err"); return; }
+      const kind = btn.dataset.export;
+      try {
+        if (kind === "xlsx" || kind === "numbers") {
+          const fn = `${d.base}_${stamp()}${kind === "numbers" ? "_Numbers" : ""}.xlsx`;
+          saveBlob(buildXlsx(d.header, d.rows, d.charts, kind === "numbers"), fn);
+          say(`${fn} を保存しました（表とグラフ入り）。${where}`, "ok");
+        } else if (kind === "json") {
+          const doc = { format: "lab-data", version: 1, source, date: new Date().toISOString(), ...(d.meta ? { meta: d.meta } : {}), series: d.series };
+          const fn = `${d.base}_${stamp()}.json`;
+          saveBlob(new Blob([JSON.stringify(doc)], { type: "application/json" }), fn);
+          say(`${fn} を保存しました。${where}`, "ok");
+        } else if (kind === "tsv") {
+          const text = (d.tsv || [d.header, ...d.rows].map(r => r.map(v => v === null || v === undefined ? "" : v).join("\t")).join("\n")) + "\n";
+          const ok = await copyText(text);
+          say(ok ? "表をコピーしました。スプレッドシートのセルに貼り付けてください。" : "コピーできませんでした。", ok ? "ok" : "err");
+        }
+      } catch (e) {
+        console.error(e);
+        say("保存できませんでした。", "err");
+      }
+    }));
+  }
+
+  return { drawPlot, xFromEvent, nearest, wireExport, buildXlsx, stamp, copyText, extent };
+})();
+
+</script>
+<script>
+(() => {
+  "use strict";
+
+  // 202512 版と同じ解析（fftSize 8192・0〜2000 Hz・ピーク付近 3 点の放物線補間）
+  const FFT_SIZE = 8192;
+  const MAX_FREQ = 2000;
+  const INTERVAL_MS = 1000;
+  const DOREMI = ["ド", "ド♯", "レ", "レ♯", "ミ", "ファ", "ファ♯", "ソ", "ソ♯", "ラ", "ラ♯", "シ"];
+
+  const $ = id => document.getElementById(id);
+  const startBtn = $("startBtn"), stopBtn = $("stopBtn"), clearBtn = $("clearBtn");
+  const statusEl = $("status"), canvas = $("spectrum"), logTable = $("logTable");
+
+  let audioContext = null, analyser = null, stream = null, dataArray = null, timer = null;
+  let t0 = null;
+  let logs = [];                    // { clock, t, freq, note }
+  let lastSpec = null;              // { bins: [{x, y}], peak }
+
+  function setStatus(text, kind) { statusEl.textContent = text; statusEl.className = "status" + (kind ? " " + kind : ""); }
+
+  function noteName(freq) {
+    if (freq < 20 || freq > 5000) return "（範囲外）";
+    const n = Math.round(12 * Math.log2(freq / 440) + 69);
+    return `${DOREMI[((n % 12) + 12) % 12]}${Math.floor(n / 12) - 1}`;
+  }
+
+  async function start() {
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    } catch (e) {
+      setStatus("マイクを使えませんでした");
+      alert("マイクの起動に失敗しました。https で開いて，マイクの使用を許可してください。");
+      return;
+    }
+    audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    await audioContext.resume();
+    const source = audioContext.createMediaStreamSource(stream);
+    analyser = audioContext.createAnalyser();
+    analyser.fftSize = FFT_SIZE;
+    dataArray = new Uint8Array(analyser.frequencyBinCount);
+    source.connect(analyser);
+    if (t0 === null) t0 = performance.now();
+    timer = setInterval(analyze, INTERVAL_MS);
+    startBtn.disabled = true;
+    stopBtn.disabled = false;
+    setStatus("測定中（1 秒ごと）", "live");
+  }
+
+  function stop() {
+    clearInterval(timer); timer = null;
+    if (stream) stream.getTracks().forEach(tr => tr.stop());
+    stream = null;
+    if (audioContext) audioContext.close();
+    audioContext = null; analyser = null;
+    startBtn.disabled = false;
+    stopBtn.disabled = true;
+    setStatus(`停止（${logs.length} 件）`, "done");
+  }
+
+  function analyze() {
+    if (!analyser) return;
+    analyser.getByteFrequencyData(dataArray);
+    const freqPerBin = audioContext.sampleRate / 2 / dataArray.length;
+    const maxBin = Math.floor(MAX_FREQ / freqPerBin);
+
+    let maxIndex = 0;
+    for (let i = 1; i < maxBin; i++) if (dataArray[i] > dataArray[maxIndex]) maxIndex = i;
+    let refined = maxIndex;
+    if (maxIndex > 0 && maxIndex < maxBin - 1) {
+      const y1 = dataArray[maxIndex - 1], y2 = dataArray[maxIndex], y3 = dataArray[maxIndex + 1];
+      const den = y1 - 2 * y2 + y3;
+      if (den !== 0) refined = maxIndex + 0.5 * (y1 - y3) / den;
+    }
+    const freq = refined * freqPerBin;
+    const note = noteName(freq);
+    const rec = { clock: new Date().toLocaleTimeString(), t: (performance.now() - t0) / 1000, freq, note };
+    logs.push(rec);
+
+    $("freqView").innerHTML = `${freq.toFixed(2)}<small>Hz</small>`;
+    $("noteView").textContent = note;
+    const tr = document.createElement("tr");
+    tr.innerHTML = `<td>${rec.clock}</td><td>${rec.t.toFixed(1)}</td><td>${freq.toFixed(2)}</td><td>${note}</td>`;
+    logTable.insertBefore(tr, logTable.firstChild);
+
+    lastSpec = { bins: Array.from({ length: maxBin }, (_, i) => ({ x: i * freqPerBin, y: dataArray[i] })), peak: freq };
+    drawSpectrum();
+  }
+
+  function drawSpectrum() {
+    const bins = lastSpec ? lastSpec.bins : [];
+    const g = Lab.drawPlot(canvas, {
+      series: [{ pts: bins, color: "#3d3d3a", mode: "line", width: 1.2 }],
+      xRange: [0, MAX_FREQ],
+      yRange: [0, 255],
+      xLabel: { sym: "f", unit: "Hz" },
+      yLabel: { text: "強さ（相対値）" },
+    });
+    if (lastSpec) {
+      // 補間したピークの位置に縦線
+      const ctx = canvas.getContext("2d");
+      const x = g.X(lastSpec.peak);
+      ctx.strokeStyle = "#d97757";
+      ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.moveTo(x, g.m.t); ctx.lineTo(x, g.m.t + g.ph); ctx.stroke();
+    }
+  }
+
+  startBtn.addEventListener("click", start);
+  stopBtn.addEventListener("click", stop);
+  clearBtn.addEventListener("click", () => {
+    logs = [];
+    logTable.innerHTML = "";
+    t0 = timer ? performance.now() : null;
+    $("freqView").innerHTML = "—<small>Hz</small>";
+    $("noteView").textContent = "—";
+    if (!timer) setStatus("待機中");
+  });
+  window.addEventListener("resize", drawSpectrum);
+
+  Lab.wireExport($("exportCard"), () => {
+    if (!logs.length) return null;
+    const r3 = v => Number(v.toFixed(3));
+    return {
+      base: "FFTピーク周波数",
+      header: ["t [s]", "時刻", "f [Hz]", "音名"],
+      rows: logs.map(r => [r3(r.t), r.clock, r3(r.freq), r.note]),
+      charts: [{ title: "ピーク周波数", x: { col: 0, sym: "t", unit: "s" }, y: { sym: "f", unit: "Hz" }, series: [{ name: "f", col: 2, color: "#d97757" }] }],
+      series: [{ name: "ピーク周波数", sym: "f", sub: "", unit: "Hz", dt: INTERVAL_MS / 1000, t: logs.map(r => r3(r.t)), y: logs.map(r => r3(r.freq)) }],
+    };
+  }, "fft202611");
+
+  drawSpectrum();
+})();
+</script>
+</body>
+</html>
